@@ -91,9 +91,9 @@ int main()
     sa::IImuSensorAdapter& imu = adapter;
     std::string error;
 
-    // At rest and level, an ideal accelerometer reads -g along the sensor z (FRD).
+    // At rest and level, an ideal accelerometer reads +g along the sensor z (FLU).
     sa::ImuTruth truth{};
-    truth.specific_force = {0.0, 0.0, -9.80665};
+    truth.specific_force = {0.0, 0.0, 9.80665};
 
     sa::ImuSample sample{};
     for (int k = 0; k < 6; ++k) {
@@ -107,7 +107,7 @@ int main()
         check(sample.gyro.value.x == expected, "value is held between measurements");
         check(sample.gyro.sample_time_ns == static_cast<std::uint64_t>(k - k % 4) * setup.physics_step_ns,
               "sample time is the measurement time");
-        check(sample.accel.value.z == -9.80665, "specific force at rest");
+        check(sample.accel.value.z == 9.80665, "specific force at rest");
         check(sample.gyro.flags == 0, "no undefined flag bits");
     }
 

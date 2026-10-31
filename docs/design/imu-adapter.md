@@ -51,12 +51,13 @@
 |---|---|---|
 | 角速度 | センサの軸 | rad/s |
 | 比力（加速度計が理想的に測る値。重力の分を含む） | センサの軸 | m/s² |
-| センサの姿勢（世界 NED から見た回転） | 四元数 | — |
-| 重力の加速度 | 世界 NED | m/s² |
+| センサの姿勢（世界 NWU から見た回転） | 四元数 | — |
+| 重力の加速度 | 世界 NWU | m/s² |
 
 - 箱庭ドローン PRO が内部で使っている量（比力）を、そのまま渡します。
 - 姿勢と重力は補助の値です。比力ではなく、重力を含まない加速度を入力に取る実装のために渡します（a = f + R⁻¹·g）。
-- 世界は NED、機体とセンサは FRD の決まりで渡します。
+- 箱庭の決まりで、世界は NWU（x 北、y 西、z 上）、機体とセンサは FLU（x 前、y 左、z 上）で渡します。静止して水平のとき、比力はセンサの z 軸で +g です。
+- 箱庭ドローン PRO の中の座標（NED・FRD）との変換は、ホストが口の境目で行います。
 
 ### 3.3 ジャイロと加速度は別々に測る
 
@@ -132,14 +133,14 @@ Control Link と同じ考え方にします。
 
 | 名前 | 中身 |
 |---|---|
-| `ImuAdapterSetup` | 作るときにホストが渡すもの：アダプタ自身の設定ファイル、機体の名前・番号、センサの名前、物理の刻み、乱数の種 |
+| `ImuAdapterSetup` | 作るときにホストが渡すもの（共通の `SensorAdapterSetup`）：アダプタ自身の設定ファイル、機体の名前・番号、センサの名前、物理の刻み、乱数の種 |
 | `ImuTruth` | 物理の刻みごとの真値：時刻、角速度、比力、世界からセンサへの回転、世界の重力 |
 | `ImuChannel` | 1 つのセンサの値：新しく測ったか、測った時刻、値、印（flags） |
 | `ImuSample` | 1 刻みの出力：ジャイロと加速度の `ImuChannel` |
 | `ImuCalibration` | 自動操縦の較正の値：加速度のゼロ点のずれ、目盛り |
 | `ImuAdapterCapabilities` | 持っている機能の宣言 |
-| `LogColumn` | ログの列の名前と単位 |
-| `IImuSensorAdapter` | `step`、`reset`、`capabilities`、`calibration`、`log_columns`、`log_values` |
+| `LogColumn` | ログの列の名前と単位（共通） |
+| `IImuSensorAdapter` | `step`、`capabilities`、`calibration`。`reset`、`log_columns`、`log_values` は共通の `ISensorAdapter` から受け継ぐ |
 
 `test/imu_sensor_adapter_contract.cpp` に、誤差のない見本のアダプタと、ホストからの呼び方の例があります。
 
