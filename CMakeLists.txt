@@ -26,4 +26,8 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
     add_executable(imu_sensor_adapter_contract_test test/imu_sensor_adapter_contract.cpp)
     target_link_libraries(imu_sensor_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
     add_test(NAME imu_sensor_adapter_contract COMMAND imu_sensor_adapter_contract_test)
+
+    add_executable(mag_baro_gps_adapter_contract_test test/mag_baro_gps_adapter_contract.cpp)
+    target_link_libraries(mag_baro_gps_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
+    add_test(NAME mag_baro_gps_adapter_contract COMMAND mag_baro_gps_adapter_contract_test)
 endif()
