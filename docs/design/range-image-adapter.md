@@ -145,6 +145,17 @@
 
 ## 4. 口の形
 
+ヘッダは次の 4 つです（`include/hakoniwa/sensor_adapter/`）。
+
+| ヘッダ | 中身 |
+|---|---|
+| `range_image_sensor_adapter.hpp` | 共通：`Ray`・`RayHit`・`IRayCaster`、`RenderRequest`・`RenderResult`・`IImageRenderer`、`RangeImageAdapterSetup`、`SensorPoseTruth`、`CameraInfo` |
+| `rangefinder_sensor_adapter.hpp` | 距離計：`RangeSample`、能力の表、`IRangefinderSensorAdapter` |
+| `lidar_sensor_adapter.hpp` | LiDAR：`LidarPoint`、`LidarScan`、能力の表、`ILidarSensorAdapter` |
+| `camera_sensor_adapter.hpp` | 深度と RGB：`DepthImage`、`RgbImage`、能力の表、`IDepthCameraSensorAdapter`、`IRgbCameraSensorAdapter` |
+
+センサの軸から光学の軸への回転は、`v_optical = R(q) v_sensor` で q = (0.5, 0.5, −0.5, 0.5) です（前 → +z、左 → −x、上 → −y）。
+
 ### 4.1 世界を測る部分（ホストが実装する）
 
 ```cpp
@@ -254,7 +265,7 @@ struct CameraInfo {
     std::array<double, 9> k{};      // 3×3
     std::array<double, 9> r{};      // 3×3
     std::array<double, 12> p{};     // 3×4
-    Quaternion sensor_to_optical{}; // センサの軸（FLU）から光学の軸（x 右、y 下、z 前）
+    Quaternion sensor_to_optical{0.5, 0.5, -0.5, 0.5}; // センサの軸（FLU）から光学の軸（x 右、y 下、z 前）
 };
 enum class DepthType : std::uint8_t { kPlanar = 0, kPerspective = 1 };
 struct DepthImage {
