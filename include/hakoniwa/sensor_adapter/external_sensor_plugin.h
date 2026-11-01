@@ -29,7 +29,9 @@
  * example a camera on macOS) relies on it: its step may wait until the main
  * thread has done the work. While a step waits, the host does not advance the
  * physics, so the work sees the state of that step. on_stop and destroy release a
- * step that is waiting (it fails with an error instead of blocking).
+ * step that is waiting (it fails with an error instead of blocking). For such a
+ * sensor the host calls destroy on the main thread too (the main-thread resources,
+ * such as an OpenGL window on macOS, must be released there).
  *
  * Every function returns 0 on success. On failure it returns non-zero and writes a
  * NUL-terminated message into error (at most error_size bytes, truncated).
