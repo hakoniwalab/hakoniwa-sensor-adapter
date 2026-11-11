@@ -23,3 +23,4 @@
 |---|---|---|
 | ドローンのセンサ（IMU、地磁気、気圧、GPS） | 箱庭ドローン PRO のセンサ v2、gz-sensors 10.2.0、Project AirSim の core_sim | [ドローンのセンサ](drone/README.md) |
 | 6 軸の力覚センサ | 箱庭の力覚センサのモデル、gz-sensors 10.2.0。機能の範囲は MuJoCo と mujoco_ros2_control も | [力覚センサ](force-torque/README.md) |
+| 関節のセンサ（エンコーダ、関節トルク） | 箱庭の関節のセンサのモデルと、Gazebo・MuJoCo・mujoco_ros2_control・Webots が出す値（真値） | [関節のセンサ](joint/README.md) |
