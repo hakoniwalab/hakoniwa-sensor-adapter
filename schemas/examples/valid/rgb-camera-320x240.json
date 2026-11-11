@@ -9,5 +9,9 @@
   "clip": {
     "near": 0.01,
     "far": 50.0
+  },
+  "output": {
+    "jpeg_quality": 95,
+    "service_max_clients": 1
   }
 }

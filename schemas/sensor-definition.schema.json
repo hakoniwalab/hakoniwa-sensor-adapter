@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hakoniwa-lab.net/schema/hakoniwa-sensor-adapter/sensor-definition/v1",
   "title": "Hakoniwa sensor adapter: sensor definition file",
-  "description": "One sensor definition file: the error model of one sensor, read by the sensor adapter of any implementation (docs/spec). Units: metres, seconds, radians, Hz. Unknown keys are rejected to catch typos; a host may extend this schema with its own settings. Rules that span fields (range.min < range.max, accuracy range.min < range.max, clip.near < clip.far, max_angle >= min_angle) are checked by the adapter at creation and by tools/check_sensor_definition.py, not by this schema.",
+  "description": "One sensor definition file: the error model of one sensor, read by the sensor adapter of any implementation (docs/spec). Units: metres, seconds, radians, Hz. Unknown keys are rejected to catch typos. The optional output settings are for hosts that publish the values themselves. Rules that span fields (range.min < range.max, accuracy range.min < range.max, clip.near < clip.far, max_angle >= min_angle) are checked by the adapter at creation and by tools/check_sensor_definition.py, not by this schema.",
   "type": "object",
   "required": [
     "type"
@@ -348,6 +348,16 @@
         },
         "accuracy": {
           "$ref": "#/$defs/accuracy"
+        },
+        "output": {
+          "description": "How a host that publishes the values itself (for example the external sensor plugin) sends them. Hosts that configure their outputs elsewhere (for example the Robot Runtime) ignore it.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "service_max_clients": {
+              "$ref": "#/$defs/service_max_clients"
+            }
+          }
         }
       }
     },
@@ -452,6 +462,23 @@
               "type": "number",
               "minimum": 0,
               "default": 0
+            }
+          }
+        },
+        "output": {
+          "description": "How a host that publishes the values itself (for example the external sensor plugin) sends them. Hosts that configure their outputs elsewhere (for example the Robot Runtime) ignore it.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "jpeg_quality": {
+              "description": "JPEG quality of the published compressed image.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 95
+            },
+            "service_max_clients": {
+              "$ref": "#/$defs/service_max_clients"
             }
           }
         }
@@ -920,6 +947,12 @@
           }
         }
       }
+    },
+    "service_max_clients": {
+      "description": "Number of clients a host may serve the latest data to at the same time.",
+      "type": "integer",
+      "minimum": 1,
+      "default": 1
     }
   }
 }
