@@ -1,0 +1,8 @@
+{
+  "type": "radar",
+  "update_rate": 10,
+  "range": {
+    "min": 0.1,
+    "max": 12
+  }
+}

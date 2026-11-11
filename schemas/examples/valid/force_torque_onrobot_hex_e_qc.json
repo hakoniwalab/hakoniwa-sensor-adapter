@@ -1,0 +1,15 @@
+{
+  "type": "force_torque",
+  "update_rate": 500,
+  "lowpass_cutoff_hz": 100,
+  "range":    { "fxy": 200, "fz": 200, "txy": 10, "tz": 6.5 },
+  "overload": { "fxy": "500%", "fz": "500%", "txy": "500%", "tz": "500%" },
+  "noise": {
+    "definition": "1sigma",
+    "rate_hz": 100,
+    "fxy": 0.035, "fz": 0.15, "txy": 0.002, "tz": 0.001
+  },
+  "resolution": { "fxy": 0.2, "fz": 0.8, "txy": 0.01, "tz": 0.002 },
+  "nonlinearity": "2%",
+  "crosstalk": "5%"
+}

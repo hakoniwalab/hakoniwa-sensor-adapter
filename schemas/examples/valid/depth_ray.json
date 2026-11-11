@@ -1,0 +1,10 @@
+{
+    "type": "depth_camera",
+    "update_rate": 10,
+    "method": "ray",
+    "image": { "width": 64, "height": 48 },
+    "horizontal_fov": 1.2,
+    "depth_type": "planar",
+    "range": { "min": 0.01, "max": 20.0, "resolution": 0.001 },
+    "no_return": "inf"
+}

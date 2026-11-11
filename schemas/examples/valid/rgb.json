@@ -1,0 +1,13 @@
+{
+  "type": "rgb_camera",
+  "update_rate": 10,
+  "image": {
+    "width": 64,
+    "height": 48
+  },
+  "horizontal_fov": 1.2,
+  "clip": {
+    "near": 0.01,
+    "far": 30.0
+  }
+}

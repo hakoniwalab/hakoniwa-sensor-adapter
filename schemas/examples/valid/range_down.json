@@ -1,0 +1,8 @@
+{
+    "type": "rangefinder",
+    "update_rate": 10,
+    "radiation_type": "laser",
+    "range": { "min": 0.01, "max": 10.0 },
+    "cone": { "horizontal": 0.0, "vertical": 0.0, "rays": 1 },
+    "no_return": "inf"
+}

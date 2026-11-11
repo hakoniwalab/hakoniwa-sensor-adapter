@@ -50,6 +50,7 @@ Measured on macOS (arm64). The Gazebo and Project AirSim columns can be reproduc
 |---|---|
 | [docs/design](docs/design) | Interface design for each sensor family and surveys of other simulators and real devices |
 | [docs/spec](docs/spec/README.md) | Sensor behaviour specification |
+| [schemas](schemas/sensor-definition.schema.json) | JSON Schema of the sensor definition files (rangefinder, LiDAR, cameras, force-torque, joint); check files with `tools/check_sensor_definition.py` |
 | [docs/evaluation](docs/evaluation/README.md) | Comparison results |
 
 ## Build and contract tests

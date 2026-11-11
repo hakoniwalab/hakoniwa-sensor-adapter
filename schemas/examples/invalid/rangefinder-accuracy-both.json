@@ -1,0 +1,18 @@
+{
+  "type": "rangefinder",
+  "update_rate": 10,
+  "range": {
+    "min": 0.1,
+    "max": 12
+  },
+  "accuracy": [
+    {
+      "range": {
+        "min": 0,
+        "max": 5
+      },
+      "stddev": 0.05,
+      "percent": 1
+    }
+  ]
+}

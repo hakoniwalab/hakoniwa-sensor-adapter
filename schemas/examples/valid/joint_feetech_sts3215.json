@@ -1,0 +1,10 @@
+{
+  "type": "joint",
+  "update_rate": 100,
+  "encoder": {
+    "side": "joint",
+    "bits": 12,
+    "kind": "absolute"
+  },
+  "velocity": { "method": "difference", "window": 1, "lsb": "0.01465rpm" }
+}

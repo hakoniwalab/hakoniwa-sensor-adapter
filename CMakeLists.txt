@@ -58,4 +58,17 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
         PRIVATE HAKO_FAKE_PLUGIN_PATH="$<TARGET_FILE:fake_external_sensor_plugin>")
     add_dependencies(external_sensor_plugin_contract_test fake_external_sensor_plugin)
     add_test(NAME external_sensor_plugin_contract COMMAND external_sensor_plugin_contract_test)
+
+    # Sensor definition schema: examples and docs/spec examples (needs Python with jsonschema).
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        execute_process(COMMAND ${Python3_EXECUTABLE} -c "import jsonschema"
+            RESULT_VARIABLE _hako_jsonschema_missing OUTPUT_QUIET ERROR_QUIET)
+        if(_hako_jsonschema_missing EQUAL 0)
+            add_test(NAME sensor_definition_schema
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_sensor_definition.py --self-test)
+        else()
+            message(STATUS "jsonschema not found: the sensor definition schema test is skipped")
+        endif()
+    endif()
 endif()

@@ -88,6 +88,8 @@ The low-pass output x̃ is normalised to u_i = x̃_i / R_i, then the following a
 
 ## 3. Configuration example
 
+Schema: `$defs/force_torque` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "force_torque",
