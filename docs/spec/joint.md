@@ -73,6 +73,8 @@ N is the gear ratio (1 on the joint side), C is the counts per revolution, T is 
 
 ## 3. Configuration example
 
+Schema: `$defs/joint` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "joint",

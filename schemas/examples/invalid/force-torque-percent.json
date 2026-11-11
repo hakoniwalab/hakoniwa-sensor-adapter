@@ -1,0 +1,1 @@
+{"type":"force_torque","update_rate":500,"range":{"fxy":100,"fz":200,"txy":5,"tz":10},"crosstalk":"5 percent"}

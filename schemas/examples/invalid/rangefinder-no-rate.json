@@ -1,0 +1,7 @@
+{
+  "type": "rangefinder",
+  "range": {
+    "min": 0.1,
+    "max": 12
+  }
+}

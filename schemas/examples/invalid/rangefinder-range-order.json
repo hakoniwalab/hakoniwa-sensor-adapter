@@ -1,0 +1,8 @@
+{
+  "type": "rangefinder",
+  "update_rate": 10,
+  "range": {
+    "min": 12,
+    "max": 12
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "joint",
+  "update_rate": 100,
+  "encoder": {
+    "side": "joint",
+    "bits": 12,
+    "kind": "absolute"
+  },
+  "velocity": { "method": "difference", "window": 1, "lsb": "0.229rpm" },
+  "torque": {
+    "source": "current",
+    "range": 4.1,
+    "resolution": 0.0048
+  }
+}

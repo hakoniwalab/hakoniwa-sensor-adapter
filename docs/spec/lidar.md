@@ -33,6 +33,8 @@ This covers 2D and 3D LiDAR (one vertical row means 2D). The common rules are in
 
 ## 4. Configuration
 
+Schema: `$defs/lidar` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "lidar",

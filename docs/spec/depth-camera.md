@@ -15,6 +15,8 @@ The common rules (pinhole camera, range error model) are in the [common specific
 
 ## Configuration
 
+Schema: `$defs/depth_camera` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "depth_camera",

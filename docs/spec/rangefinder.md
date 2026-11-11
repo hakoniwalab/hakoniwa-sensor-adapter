@@ -18,6 +18,8 @@ The rangefinder measures the distance to the nearest object along the sensor x a
 
 ## 2. Configuration
 
+Schema: `$defs/rangefinder` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "rangefinder",

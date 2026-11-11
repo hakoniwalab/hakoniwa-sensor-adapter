@@ -12,6 +12,8 @@ The common rules (pinhole camera) are in the [common specification](README.md). 
 
 ## Configuration
 
+Schema: `$defs/rgb_camera` in [schemas/sensor-definition.schema.json](../../schemas/sensor-definition.schema.json).
+
 ```json
 {
   "type": "rgb_camera",

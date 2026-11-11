@@ -1,0 +1,925 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hakoniwa-lab.net/schema/hakoniwa-sensor-adapter/sensor-definition/v1",
+  "title": "Hakoniwa sensor adapter: sensor definition file",
+  "description": "One sensor definition file: the error model of one sensor, read by the sensor adapter of any implementation (docs/spec). Units: metres, seconds, radians, Hz. Unknown keys are rejected to catch typos; a host may extend this schema with its own settings. Rules that span fields (range.min < range.max, accuracy range.min < range.max, clip.near < clip.far, max_angle >= min_angle) are checked by the adapter at creation and by tools/check_sensor_definition.py, not by this schema.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "enum": [
+        "rangefinder",
+        "lidar",
+        "depth_camera",
+        "rgb_camera",
+        "force_torque",
+        "joint"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "rangefinder"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/rangefinder"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "lidar"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/lidar"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "depth_camera"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/depth_camera"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "rgb_camera"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/rgb_camera"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "force_torque"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/force_torque"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "joint"
+          }
+        }
+      },
+      "then": {
+        "$ref": "#/$defs/joint"
+      }
+    }
+  ],
+  "$defs": {
+    "update_rate": {
+      "description": "Measurement rate [Hz], rounded to whole physics steps (RIS-COM-060).",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "range": {
+      "description": "Distance range [m] and the rounding step (RIS-COM-150, RIS-COM-170).",
+      "type": "object",
+      "required": [
+        "max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "min": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "max": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "resolution": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    },
+    "no_return": {
+      "description": "Value when nothing is hit: +inf (REP 117) or the range limit (RIS-COM-120).",
+      "enum": [
+        "inf",
+        "limit"
+      ],
+      "default": "inf"
+    },
+    "accuracy": {
+      "description": "Error per distance interval: stddev [m] or percent of the distance, one of the two (RIS-COM-130).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "range"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "range": {
+            "type": "object",
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            }
+          },
+          "stddev": {
+            "type": "number",
+            "minimum": 0
+          },
+          "percent": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "stddev"
+            ]
+          },
+          {
+            "required": [
+              "percent"
+            ]
+          }
+        ]
+      }
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "horizontal_fov": {
+      "description": "Horizontal field of view [rad] of a pinhole camera, below pi.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "exclusiveMaximum": 3.14159265358979
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "near": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "far": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      }
+    },
+    "scan_axis": {
+      "description": "Evenly spaced samples from min_angle to max_angle inclusive [rad] (RIS-LID-010).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "min_angle": {
+          "type": "number",
+          "default": 0
+        },
+        "max_angle": {
+          "type": "number"
+        }
+      }
+    },
+    "rangefinder": {
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rangefinder"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "radiation_type": {
+          "enum": [
+            "laser",
+            "infrared",
+            "ultrasound"
+          ],
+          "default": "laser"
+        },
+        "cone": {
+          "description": "Rays in a cone: full angles [rad] and the number of rays (RIS-RNG-020).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "horizontal": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            },
+            "vertical": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            },
+            "rays": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          }
+        },
+        "range": {
+          "$ref": "#/$defs/range"
+        },
+        "no_return": {
+          "$ref": "#/$defs/no_return"
+        },
+        "accuracy": {
+          "$ref": "#/$defs/accuracy"
+        }
+      }
+    },
+    "lidar": {
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate",
+        "scan",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "lidar"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "scan_mode": {
+          "enum": [
+            "rotating",
+            "instant"
+          ],
+          "default": "rotating"
+        },
+        "scan": {
+          "type": "object",
+          "required": [
+            "horizontal"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "horizontal": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/scan_axis"
+                },
+                {
+                  "required": [
+                    "samples"
+                  ]
+                }
+              ]
+            },
+            "vertical": {
+              "$ref": "#/$defs/scan_axis"
+            }
+          }
+        },
+        "range": {
+          "$ref": "#/$defs/range"
+        },
+        "no_return": {
+          "$ref": "#/$defs/no_return"
+        },
+        "accuracy": {
+          "$ref": "#/$defs/accuracy"
+        }
+      }
+    },
+    "depth_camera": {
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate",
+        "image",
+        "horizontal_fov",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "depth_camera"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "method": {
+          "enum": [
+            "ray",
+            "render"
+          ],
+          "default": "ray"
+        },
+        "image": {
+          "$ref": "#/$defs/image"
+        },
+        "horizontal_fov": {
+          "$ref": "#/$defs/horizontal_fov"
+        },
+        "depth_type": {
+          "enum": [
+            "planar",
+            "perspective"
+          ],
+          "default": "planar"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "range": {
+          "description": "The depth PDU stores millimetres in 16 bits, so range.max is at most 65.535 m (RIS-PLG-280).",
+          "allOf": [
+            {
+              "$ref": "#/$defs/range"
+            },
+            {
+              "properties": {
+                "max": {
+                  "maximum": 65.535
+                }
+              }
+            }
+          ]
+        },
+        "no_return": {
+          "$ref": "#/$defs/no_return"
+        },
+        "accuracy": {
+          "$ref": "#/$defs/accuracy"
+        }
+      }
+    },
+    "rgb_camera": {
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate",
+        "image",
+        "horizontal_fov"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rgb_camera"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "image": {
+          "$ref": "#/$defs/image"
+        },
+        "horizontal_fov": {
+          "$ref": "#/$defs/horizontal_fov"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "noise": {
+          "description": "Gaussian pixel noise in units of full scale (RIS-RGB-020).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mean": {
+              "type": "number",
+              "default": 0
+            },
+            "stddev": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        }
+      }
+    },
+    "force_torque_group_value": {
+      "description": "A value in the axis unit (N, N m), or \"<n>%\" of that axis range (FTS-ADP-520).",
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+        }
+      ]
+    },
+    "force_torque": {
+      "description": "6-axis force-torque sensor (docs/spec/force_torque).",
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate",
+        "range"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "force_torque"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "range": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fxy",
+            "fz",
+            "txy",
+            "tz"
+          ],
+          "properties": {
+            "fxy": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "txy": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "tz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "description": "Measurement range per axis group [N, N m]."
+        },
+        "overload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fxy",
+            "fz",
+            "txy",
+            "tz"
+          ],
+          "properties": {
+            "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            }
+          },
+          "description": "Overload limit per axis group; a percentage is of the range."
+        },
+        "delay": {
+          "description": "Delay [s], floored to whole physics steps.",
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "lowpass_cutoff_hz": {
+          "description": "2nd-order Butterworth cut-off [Hz]; below half the physics rate.",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "nonlinearity": {
+          "description": "End-point nonlinearity, %FS: one value or per axis group.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [],
+              "properties": {
+                "fxy": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "fz": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "txy": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "tz": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                }
+              }
+            }
+          ]
+        },
+        "scale_error": {
+          "description": "\"<n>%\" or a fraction (0.05 is 5 %) (FTS-ADP-530).",
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            }
+          ]
+        },
+        "crosstalk": {
+          "description": "\"<n>%\" or a fraction (0.05 is 5 %) (FTS-ADP-530).",
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            }
+          ]
+        },
+        "bias": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            }
+          },
+          "description": "Bound of the per-unit zero offset."
+        },
+        "drift_per_hour": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            }
+          },
+          "description": "Random-walk drift: sigma after one hour."
+        },
+        "noise": {
+          "description": "Datasheet noise and how it was measured (FTS-ADP-310..340).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "definition"
+          ],
+          "anyOf": [
+            {
+              "required": [
+                "rate_hz"
+              ]
+            },
+            {
+              "required": [
+                "bandwidth_hz"
+              ]
+            }
+          ],
+          "properties": {
+            "definition": {
+              "enum": [
+                "1sigma",
+                "6sigma_pp"
+              ]
+            },
+            "rate_hz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "bandwidth_hz": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            }
+          }
+        },
+        "resolution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tz": {
+              "$ref": "#/$defs/force_torque_group_value"
+            }
+          },
+          "description": "Quantization step per axis group."
+        },
+        "tare_window": {
+          "description": "Window of the tare mean [s].",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.1
+        }
+      }
+    },
+    "joint_angle": {
+      "description": "An angle: rad, or \"<n>deg\", \"<n>arcmin\", \"<n>arcsec\" (JNT-ADP-520).",
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(deg|arcmin|arcsec)$"
+        }
+      ]
+    },
+    "joint": {
+      "description": "Joint sensor: encoder and joint torque (docs/spec/joint).",
+      "type": "object",
+      "required": [
+        "type",
+        "update_rate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "joint"
+        },
+        "update_rate": {
+          "$ref": "#/$defs/update_rate"
+        },
+        "delay": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0
+        },
+        "encoder": {
+          "type": "object",
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "required": [
+                "bits"
+              ]
+            },
+            {
+              "required": [
+                "counts_per_rev"
+              ]
+            }
+          ],
+          "properties": {
+            "side": {
+              "enum": [
+                "joint",
+                "motor"
+              ],
+              "default": "joint"
+            },
+            "gear_ratio": {
+              "type": "number",
+              "minimum": 1,
+              "default": 1
+            },
+            "counts_per_rev": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "bits": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 40
+            },
+            "kind": {
+              "enum": [
+                "absolute",
+                "incremental"
+              ],
+              "default": "absolute"
+            },
+            "wrap": {
+              "enum": [
+                "none",
+                "single_turn"
+              ],
+              "default": "none"
+            },
+            "offset": {
+              "$ref": "#/$defs/joint_angle"
+            },
+            "accuracy": {
+              "$ref": "#/$defs/joint_angle"
+            },
+            "backlash": {
+              "$ref": "#/$defs/joint_angle"
+            },
+            "stiffness": {
+              "type": "number",
+              "minimum": 0
+            },
+            "noise_counts": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "velocity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "enum": [
+                "true",
+                "difference"
+              ],
+              "default": "true"
+            },
+            "window": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "lsb": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?rpm$"
+                }
+              ]
+            }
+          }
+        },
+        "torque": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "range"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "sensor",
+                "current"
+              ]
+            },
+            "range": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "scale_error": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+                }
+              ]
+            },
+            "bias": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+                }
+              ]
+            },
+            "noise": {
+              "type": "number",
+              "minimum": 0
+            },
+            "resolution": {
+              "type": "number",
+              "minimum": 0
+            },
+            "friction": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "coulomb": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "viscous": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
