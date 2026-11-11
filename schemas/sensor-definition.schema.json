@@ -465,6 +465,56 @@
             }
           }
         },
+        "cameras": {
+          "description": "Cameras of the rig (RIS-RGB-060). Without it, one camera at the rig origin. Two cameras form a stereo pair, left first (RIS-RGB-090).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+              },
+              "position_m": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 3,
+                "maxItems": 3,
+                "default": [
+                  0,
+                  0,
+                  0
+                ]
+              },
+              "orientation_deg": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "roll": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "pitch": {
+                    "type": "number",
+                    "default": 0
+                  },
+                  "yaw": {
+                    "type": "number",
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
         "output": {
           "description": "How a host that publishes the values itself (for example the external sensor plugin) sends them. Hosts that configure their outputs elsewhere (for example the Robot Runtime) ignore it.",
           "type": "object",

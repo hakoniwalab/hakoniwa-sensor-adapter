@@ -44,11 +44,14 @@ struct DepthImage {
 };
 
 /**
- * @brief One colour image, shaped like sensor_msgs/Image (rgb8) with CameraInfo.
+ * @brief One colour image of one camera of the rig, shaped like sensor_msgs/Image
+ * (rgb8) with CameraInfo.
  *
  * data belongs to the adapter and stays valid until its next step(). Held between frames.
  */
 struct RgbImage {
+    /// Name of the camera in the rig ("" for a single camera); hosts add it to the frame id.
+    std::string camera_name;
     bool updated{false};
     std::uint64_t sample_time_ns{0};
     std::uint32_t width{0};
@@ -57,9 +60,21 @@ struct RgbImage {
     std::uint32_t step{0};
     /// rgb8, rows from top to bottom.
     const std::uint8_t* data{nullptr};
+    /// For a stereo pair, the right camera's P carries the baseline (P[3] = -fx * baseline).
     CameraInfo info{};
     /// SensorFlag bits.
     std::uint32_t flags{0};
+};
+
+/**
+ * @brief The images of one RGB camera rig (1..N cameras) for one step.
+ *
+ * All cameras of a rig are drawn in one render call, so they show the same
+ * physics step. images belongs to the adapter and stays valid until its next step().
+ */
+struct RgbImages {
+    const RgbImage* images{nullptr};
+    std::uint32_t count{0};
 };
 
 /// What a depth camera adapter implements. A feature it lacks is declared false, never faked.
@@ -80,6 +95,8 @@ struct DepthCameraAdapterCapabilities {
 
 /// What an RGB camera adapter implements. A feature it lacks is declared false, never faked.
 struct RgbCameraAdapterCapabilities {
+    /// Largest number of cameras in one rig (1: single cameras only; 2 or more: stereo and rigs).
+    std::uint32_t max_cameras{1};
     bool requires_ray_caster{false};
     bool requires_renderer{false};
     bool noise{false};
@@ -96,10 +113,10 @@ public:
     virtual DepthCameraAdapterCapabilities capabilities() const = 0;
 };
 
-/// One RGB camera of one vehicle.
+/// One RGB camera rig (1..N cameras) of one vehicle; truth is the rig's reference pose.
 class IRgbCameraSensorAdapter : public ISensorAdapter {
 public:
-    virtual bool step(const SensorPoseTruth& truth, RgbImage& out, std::string& error) = 0;
+    virtual bool step(const SensorPoseTruth& truth, RgbImages& out, std::string& error) = 0;
 
     virtual RgbCameraAdapterCapabilities capabilities() const = 0;
 };

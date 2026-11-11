@@ -54,47 +54,6 @@ public:
     virtual bool cast(const Ray* rays, std::size_t count, double max_distance, RayHit* hits, std::string& error) = 0;
 };
 
-/// What the adapter asks the renderer to draw.
-struct RenderRequest {
-    std::uint32_t width{0};
-    std::uint32_t height{0};
-    /// Horizontal field of view of a pinhole camera [rad].
-    double horizontal_fov{0.0};
-    /// Clip planes [m].
-    double near_clip{0.0};
-    double far_clip{0.0};
-    bool rgb{false};
-    bool depth{false};
-};
-
-/// What the renderer drew. Valid until the next render call.
-struct RenderResult {
-    /// rgb8, rows from top to bottom, width * 3 bytes per row. nullptr when not requested.
-    const std::uint8_t* rgb{nullptr};
-    /// Planar depth (distance from the camera plane) [m], rows from top to bottom;
-    /// +inf beyond far_clip or where nothing is drawn. nullptr when not requested.
-    const float* depth{nullptr};
-};
-
-/**
- * @brief Draws the host's world from the sensor pose of the current physics step.
- *
- * The camera looks along the sensor x axis, with the sensor z axis up in the image.
- */
-class IImageRenderer {
-public:
-    virtual ~IImageRenderer() = default;
-    virtual bool render(const RenderRequest& request, RenderResult& result, std::string& error) = 0;
-};
-
-/// Setup of a range or image sensor adapter.
-struct RangeImageAdapterSetup : SensorAdapterSetup {
-    /// The host's ray caster, or nullptr when the host has none.
-    IRayCaster* ray_caster{nullptr};
-    /// The host's renderer, or nullptr when the host has none.
-    IImageRenderer* renderer{nullptr};
-};
-
 /// Truth for one physics step: the sensor pose (after the mounting pose is applied).
 struct SensorPoseTruth {
     /// Simulation time of this step [ns].
@@ -126,6 +85,104 @@ struct CameraInfo {
     /// Rotation from the sensor axes (FLU) to the optical frame, fixed by this
     /// interface: v_optical = R(q) v_sensor, so forward -> +z, left -> -x, up -> -y.
     Quaternion sensor_to_optical{0.5, 0.5, -0.5, 0.5};
+};
+
+/// Bits of RenderRequest::outputs.
+enum RenderOutput : std::uint32_t {
+    kRenderRgb = 1u << 0,
+    kRenderDepth = 1u << 1,
+    kRenderSegmentation = 1u << 2,
+};
+
+/// A destination the caller owns. The renderer writes into it and keeps no reference to it.
+struct ImageBuffer {
+    /// nullptr when this output is not requested.
+    void* data{nullptr};
+    /// Bytes available at data.
+    std::size_t capacity{0};
+};
+
+/// A pinhole camera for one render: intrinsics as in sensor_msgs/CameraInfo K
+/// (pixel centres at integer coordinates) and clip planes.
+struct RenderCamera {
+    std::uint32_t width{0};
+    std::uint32_t height{0};
+    double fx{0.0};
+    double fy{0.0};
+    double cx{0.0};
+    double cy{0.0};
+    /// Clip planes [m].
+    double near_clip{0.0};
+    double far_clip{0.0};
+};
+
+/**
+ * @brief One image to draw. Rendering is a function of this request and the
+ * state of the host's world at the step the caller is in.
+ *
+ * The camera looks along the sensor x axis, with the sensor z axis up in the
+ * image. Rows go from top to bottom, columns from left to right.
+ */
+struct RenderRequest {
+    /// Name for errors and logs (for example the sensor and camera name).
+    std::string camera_name;
+    /// Camera pose of this step (world NWU, camera axes FLU); the renderer remembers no mount.
+    SensorPoseTruth pose{};
+    RenderCamera camera{};
+    /// RenderOutput bits.
+    std::uint32_t outputs{0};
+    /// rgb8, width * 3 bytes per row.
+    ImageBuffer rgb;
+    /// float32 planar depth (distance from the camera plane) [m]; +inf beyond far_clip or where
+    /// nothing is drawn.
+    ImageBuffer depth;
+    /// int32 object id per pixel (chosen by the host, as RayHit::object_id); -1 where nothing is drawn.
+    ImageBuffer segmentation;
+};
+
+/// The result of one request.
+struct RenderStatus {
+    bool ok{false};
+    /// Why the request failed (for example a destination smaller than the image).
+    std::string error;
+};
+
+/// What a renderer can draw. A feature it lacks is declared false, never faked.
+struct ImageRendererCapabilities {
+    /// RenderOutput bits the renderer can produce.
+    std::uint32_t outputs{0};
+    /// Lens distortion and non-pinhole projections (not expressible in RenderCamera yet).
+    bool lens_distortion{false};
+    /// fx != fy. When false, a request with non-square pixels is an error for that request.
+    bool non_square_pixels{false};
+};
+
+/**
+ * @brief Draws the host's world. Each call is a function: requests in, images
+ * written into the caller's buffers.
+ *
+ * - The requests of one call are drawn in one go, at the same world state (for
+ *   example the two cameras of a stereo pair).
+ * - The call blocks until every request is done. It may be called from any thread;
+ *   handing the work to the thread that owns the graphics context is the
+ *   renderer's business.
+ * - A destination smaller than the requested image is an error for that request;
+ *   nothing is written to it.
+ * - Returns false when any request failed; statuses[i] says which and why.
+ */
+class IImageRenderer {
+public:
+    virtual ~IImageRenderer() = default;
+    virtual bool render(const RenderRequest* requests, std::size_t count, RenderStatus* statuses) = 0;
+    virtual ImageRendererCapabilities capabilities() const = 0;
+};
+
+/// Setup of a range or image sensor adapter.
+struct RangeImageAdapterSetup : SensorAdapterSetup {
+    /// The host's ray caster, or nullptr when the host has none.
+    IRayCaster* ray_caster{nullptr};
+    /// The host's renderer, or nullptr when the host has none.
+    IImageRenderer* renderer{nullptr};
 };
 
 }  // namespace hakoniwa::sensor_adapter
