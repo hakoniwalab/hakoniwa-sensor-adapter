@@ -1,77 +1,77 @@
-# 地磁気・気圧・GPS センサアダプタの口（設計）
+# Magnetometer, barometer, and GPS sensor adapter interfaces (design)
 
-IMU の口（[imu-adapter.md](imu-adapter.md)）と同じ考え方で、地磁気・気圧・GPS の口を決めます。
-これで、箱庭ドローン PRO の 5 つのセンサ（加速度、ジャイロ、地磁気、気圧、GPS）を、すべて外のアダプタに差し替えられます。
+This document defines the magnetometer, barometer, and GPS interfaces, with the same approach as the IMU interface ([imu-adapter.md](imu-adapter.md)).
+With these, all 5 sensors of Hakoniwa Drone PRO (accelerometer, gyroscope, magnetometer, barometer, GPS) can be replaced by external adapters.
 
-## 1. 共通の部分
+## 1. Common part
 
-5 つのセンサに共通のものは、`include/hakoniwa/sensor_adapter/sensor_adapter.hpp` にまとめます。
+What the 5 sensors have in common is collected in `include/hakoniwa/sensor_adapter/sensor_adapter.hpp`.
 
-| 名前 | 中身 |
+| Name | Content |
 |---|---|
-| `SensorAdapterSetup` | 作るときにホストが渡すもの：アダプタ自身の設定ファイル、機体の名前・番号、センサの名前、物理の刻み、乱数の種 |
-| `SensorFlag` | 値に付ける印。`kSensorFlagSaturated`（頭打ちした）だけを決めている |
-| `LogColumn` | ログの列の名前と単位 |
-| `ISensorAdapter` | すべてのセンサのアダプタが持つもの：`reset`、`log_columns`、`log_values` |
+| `SensorAdapterSetup` | What the host passes at creation: the adapter's own configuration file, vehicle name and index, sensor name, physics step, random seed |
+| `SensorFlag` | Flags attached to values. Only `kSensorFlagSaturated` (saturated) is defined |
+| `LogColumn` | Name and unit of a log column |
+| `ISensorAdapter` | What every sensor adapter has: `reset`, `log_columns`, `log_values` |
 
-センサごとのアダプタ（`IImuSensorAdapter`、`IMagSensorAdapter`、`IBaroSensorAdapter`、`IGpsSensorAdapter`）は、`ISensorAdapter` を受け継ぎ、`step` と `capabilities` を足します。
+Each sensor's adapter (`IImuSensorAdapter`, `IMagSensorAdapter`, `IBaroSensorAdapter`, `IGpsSensorAdapter`) inherits `ISensorAdapter` and adds `step` and `capabilities`.
 
-共通の約束は、IMU と同じです。
+The common contract is the same as for the IMU.
 
-- 座標は箱庭の決まりです。世界は NWU（x 北、y 西、z 上）、機体とセンサは FLU（x 前、y 左、z 上）です。
+- Frames follow the Hakoniwa convention. The world is NWU (x north, y west, z up), and the vehicle and the sensor are FLU (x forward, y left, z up).
 
-- 1 つのインスタンスは、1 つの機体の 1 つのセンサです。1 つのスレッドからだけ呼びます。
-- `step` は、物理の刻みごとに、時刻 0、dt、2dt、…で呼びます。時刻が刻みどおりに進まなければエラーです。
-- 値は、アダプタ自身の周期の境目で測り、その間は前の値を返し続けます。新しく測ったかどうか（`updated`）と、測った時刻を付けます。
-- 誤差のモデルは、すべてアダプタのものです。設定は、アダプタ自身の形式で書きます。
-- 持っていない機能は、能力の表で `false` と宣言します。
+- One instance is one sensor on one vehicle. It is called from only one thread.
+- `step` is called every physics step, at time 0, dt, 2dt, .... If time does not advance by the step, it is an error.
+- Values are measured at the adapter's own period boundaries, and the previous value is returned in between. Each value carries whether it was newly measured (`updated`) and the measurement time.
+- The error model belongs entirely to the adapter. The configuration is written in the adapter's own format.
+- Features an adapter does not have are declared `false` in the capability table.
 
-## 2. 地磁気（`IMagSensorAdapter`）
+## 2. Magnetometer (`IMagSensorAdapter`)
 
-| 真値（`MagTruth`） | 座標 | 単位 |
+| Truth (`MagTruth`) | Frame | Unit |
 |---|---|---|
-| 磁場 | センサの軸 | nT |
-| 世界の磁場、世界からセンサへの回転 | 世界 NWU、四元数 | nT |
+| Magnetic field | Sensor axes | nT |
+| World magnetic field, rotation from world to sensor | World NWU, quaternion | nT |
 
-- ホストは、シミュレーションの場所の地磁気（強さ・偏角・伏角）から世界の磁場を作り、取り付けの姿勢でセンサの軸に回してから渡します。
-- 世界の磁場と回転は補助の値です。世界の磁場を自分で回す実装のために渡します。
-- 出力（`MagSample`）は、測った磁場（nT、センサの軸）です。自動操縦への単位の変換（ガウスなど）は、ホストの側で行います。
-- 能力の表：遅れ、ノイズ、硬鉄、軟鉄、ドリフト、分解能、頭打ち。
+- The host creates the world magnetic field from the geomagnetic field at the simulation location (intensity, declination, inclination), rotates it to the sensor axes with the mounting orientation, and passes it.
+- The world magnetic field and the rotation are auxiliary values. They are passed for implementations that rotate the world field themselves.
+- The output (`MagSample`) is the measured magnetic field (nT, sensor axes). Conversion to the autopilot's unit (gauss or other) is done on the host side.
+- Capability table: delay, noise, hard iron, soft iron, drift, resolution, saturation.
 
-## 3. 気圧（`IBaroSensorAdapter`）
+## 3. Barometer (`IBaroSensorAdapter`)
 
-| 真値（`BaroTruth`） | 単位 |
+| Truth (`BaroTruth`) | Unit |
 |---|---|
-| センサの位置の高さ（平均海面から、幾何学的な高さ） | m |
-| 海面の気圧、海面の気温（天気） | Pa、℃ |
+| Altitude of the sensor location (above mean sea level, geometric altitude) | m |
+| Sea-level pressure, sea-level temperature (weather) | Pa, °C |
 
-- 大気のモデル（高さから気圧と気温を出す式）は、センサのモデルの一部としてアダプタが持ちます。ホストは高さと天気だけを渡します。
-- 出力（`BaroSample`）は、測った気圧（Pa）、センサの位置の気温（℃）、測った気圧から出した高さ（気圧高度、m）です。
-- 天気を使わない実装（決まった標準大気だけの実装）は、能力の表の `sea_level_weather` を `false` にします。気温や気圧高度を出さない実装は、`temperature`、`pressure_altitude` を `false` にし、その値は 0 にします。
-- 能力の表：天気、気温、気圧高度、遅れ、ノイズ、ゼロ点のずれ、ドリフト、分解能、頭打ち。
+- The atmosphere model (the formulas that give pressure and temperature from altitude) belongs to the adapter as part of the sensor model. The host passes only the altitude and the weather.
+- The output (`BaroSample`) is the measured pressure (Pa), the temperature at the sensor location (°C), and the altitude derived from the measured pressure (pressure altitude, m).
+- An implementation that does not use weather (one that uses only a fixed standard atmosphere) sets `sea_level_weather` in the capability table to `false`. An implementation that does not output temperature or pressure altitude sets `temperature` and `pressure_altitude` to `false` and sets those values to 0.
+- Capability table: weather, temperature, pressure altitude, delay, noise, bias, drift, resolution, saturation.
 
-## 4. GPS（`IGpsSensorAdapter`）
+## 4. GPS (`IGpsSensorAdapter`)
 
-作るときに、ローカルの NWU の原点（シミュレーションの場所の緯度・経度・高度）を `GpsAdapterSetup::origin` で渡します。
+At creation, the origin of the local NWU frame (latitude, longitude, and altitude of the simulation location) is passed in `GpsAdapterSetup::origin`.
 
-| 真値（`GpsTruth`） | 座標 | 単位 |
+| Truth (`GpsTruth`) | Frame | Unit |
 |---|---|---|
-| アンテナの位置 | 原点からの NWU | m |
-| アンテナの速度 | NWU | m/s |
-| 同じアンテナの位置（緯度・経度・高度） | WGS-84（楕円体からの高さ、ジオイドなし） | 度、m |
+| Antenna position | NWU from the origin | m |
+| Antenna velocity | NWU | m/s |
+| The same antenna position (latitude, longitude, altitude) | WGS-84 (height above the ellipsoid, no geoid) | deg, m |
 
-- ホストは、取り付け位置（アンテナの位置）を当てはめた後の位置と速度を渡します。
-- 同じ位置を、NWU と緯度・経度の両方で渡します。変換はホストが 1 か所で行うので、どの実装も同じ真値から始められます。誤差をローカルの座標で足す実装も、緯度・経度で足す実装もあるためです。
-- 出力（`GpsSample`）は次のとおりです。
-  - 測った位置（緯度・経度・高度）、速度（NWU）
-  - 対地速度、進行方向（北から 0〜360 度）とその有効の印
-  - 受信機が報告する精度の推定（水平・垂直・速度）、見えている衛星の数、測位の種類（0：なし、2：2D、3：3D）
-- 能力の表：遅れ、位置のノイズ、速度のノイズ、ドリフト、進行方向、受信機の状態（精度・衛星の数・測位の種類）。
+- The host passes the position and velocity after the mounting position (the antenna position) has been applied.
+- The same position is passed both in NWU and in latitude and longitude. The host does the conversion in one place, so every implementation can start from the same truth. This is because some implementations add errors in local coordinates and others in latitude and longitude.
+- The output (`GpsSample`) is as follows.
+  - Measured position (latitude, longitude, altitude), velocity (NWU)
+  - Ground speed, course (0 to 360 degrees from north) and its validity flag
+  - Accuracy estimates reported by the receiver (horizontal, vertical, velocity), number of visible satellites, fix type (0: none, 2: 2D, 3: 3D)
+- Capability table: delay, position noise, velocity noise, drift, course, receiver status (accuracy, number of satellites, fix type).
 
-## 5. IMU の口との関係
+## 5. Relation to the IMU interface
 
-- IMU の口の構造体と関数は、そのまま使えます。`ImuAdapterSetup` は `SensorAdapterSetup` を受け継ぎ、センサの名前の既定を `imu` にしたものです。
-- `IImuSensorAdapter` も `ISensorAdapter` を受け継ぎます。`reset`、`log_columns`、`log_values` は、`ISensorAdapter` で宣言しています。
-- `kImuFlagSaturated` は、共通の `kSensorFlagSaturated` と同じビットです。
+- The IMU interface structs and functions can be used as they are. `ImuAdapterSetup` inherits `SensorAdapterSetup`, with the default sensor name set to `imu`.
+- `IImuSensorAdapter` also inherits `ISensorAdapter`. `reset`, `log_columns`, and `log_values` are declared in `ISensorAdapter`.
+- `kImuFlagSaturated` is the same bit as the common `kSensorFlagSaturated`.
 
-`test/mag_baro_gps_adapter_contract.cpp` に、誤差のない見本のアダプタと、ホストからの呼び方の試験があります。
+`test/mag_baro_gps_adapter_contract.cpp` contains reference adapters with no error and tests of how the host calls them.

@@ -1,35 +1,35 @@
-# 軸 4：速さ（2026-11-01）
+# Axis 4: speed (2026-11-01)
 
-5 つのセンサを 1 ms の刻みで 60 秒分（60,000 刻み）動かし、1 刻みあたりの時間を測りました。測る周期は、IMU 250 Hz、地磁気 50 Hz、気圧 50 Hz、GPS 10 Hz です。
-誤差なしと誤差あり（ノイズ、IMU のゆっくり変わるずれ）の 2 通りを、実装ごとに別のプロセスで測りました。Project AirSim は、core_sim のセンサをそのままコンパイルしたものです。macOS（Apple Silicon）。時計の分解能は約 0.04 µs です。
+We ran the five sensors with a 1 ms physics step for 60 seconds (60,000 steps) and measured the time per step. The sample periods are IMU 250 Hz, magnetometer 50 Hz, barometer 50 Hz, GPS 10 Hz.
+We measured two cases, without errors and with errors (noise, IMU slowly varying bias), each implementation in a separate process. Project AirSim is the core_sim sensors compiled as is. macOS (Apple Silicon). The clock resolution is about 0.04 µs.
 
-測り方：[ドローンのセンサの結果](README.md) の「測り方」のとおり。
+Method: as in "Method" in [Drone sensor results](README.md).
 
-## 1 刻みあたりの時間（µs）
+## Time per physics step (µs)
 
-| 実装 | 誤差 | センサ | 中央値 | 99 % | 平均 |
+| Implementation | Errors | Sensors | Median | 99 % | Mean |
 |---|---|---|---|---|---|
-| 箱庭 | なし | 5 つ合計 | 0.125 | 0.250 | 0.113 |
-| 箱庭 | あり | 5 つ合計 | 0.125 | 0.750 | 0.183 |
-| Gazebo | なし | 5 つ合計 | 0.125 | 8.4 | 0.676 |
-| Gazebo | あり | 5 つ合計 | 0.125 | 9.4 | 0.774 |
-| Project AirSim（core_sim） | なし | 5 つ合計 | 0.083 | 13.8 | 0.850 |
-| Project AirSim（core_sim） | あり | 5 つ合計 | 0.083 | 12.7 | 0.787 |
+| Hakoniwa | Off | Total of 5 | 0.125 | 0.250 | 0.113 |
+| Hakoniwa | On | Total of 5 | 0.125 | 0.750 | 0.183 |
+| Gazebo | Off | Total of 5 | 0.125 | 8.4 | 0.676 |
+| Gazebo | On | Total of 5 | 0.125 | 9.4 | 0.774 |
+| Project AirSim (core_sim) | Off | Total of 5 | 0.083 | 13.8 | 0.850 |
+| Project AirSim (core_sim) | On | Total of 5 | 0.083 | 12.7 | 0.787 |
 
-センサごとの平均（µs、誤差あり）：
+Mean per sensor (µs, with errors):
 
-| センサ | 箱庭 | Gazebo | Project AirSim |
+| Sensor | Hakoniwa | Gazebo | Project AirSim |
 |---|---|---|---|
 | IMU | 0.104 | 0.351 | 0.260 |
-| 地磁気 | 0.026 | 0.050 | 0.317（2 つ動かす。下の説明） |
-| 気圧 | 0.027 | 0.340（99 % で 7.2） | 0.144 |
+| Magnetometer | 0.026 | 0.050 | 0.317 (two run; see below) |
+| Barometer | 0.027 | 0.340 (7.2 at 99 %) | 0.144 |
 | GPS | 0.026 | 0.032 | 0.066 |
 
-## まとめ
+## Summary
 
-- 平均で、Gazebo は箱庭の約 4〜6 倍の時間がかかります。中央値は同じです。差は、測る刻み（IMU は 4 刻みに 1 回など）にだけかかる重さから来ています。
-- Gazebo の気圧は、測るたびに通信のスレッドを 1 回またいでメッセージを待つので、99 % の値が数 µs に跳ねます。
-- 3 つとも、1 ms の刻みの 0.1 % 未満です。センサの計算が、シミュレーションの速さを決めることはありません。
-- Project AirSim（core_sim）は、平均で Gazebo と同じくらい（箱庭の約 5 倍）です。測るたびに、結果をメッセージ（JSON を含む）に詰めて送り出し、アダプタはそれを読み出します。99 % の値も 13 µs ほどに跳ねます。
-- Project AirSim の地磁気は、場をホストから入れられないので、設定どおりのものとノイズなしのものの 2 つを動かして差を取ります。そのぶん、ほかのセンサより重くなります。
-- ピークのメモリ：箱庭 26.4 MB、Gazebo 49.6 MB、Project AirSim 25.9 MB（測定のプロセス全体）。
+- On average, Gazebo takes about 4 to 6 times as long as Hakoniwa. The medians are the same. The difference comes from cost paid only on the physics steps where a sample is taken (the IMU samples once every 4 steps, and so on).
+- The Gazebo barometer crosses the transport thread once and waits for a message at every sample, so the 99 % value jumps to several µs.
+- All three are below 0.1 % of the 1 ms physics step. The sensor computation does not limit the simulation speed.
+- Project AirSim (core_sim) is about as fast as Gazebo on average (about 5 times Hakoniwa). At every sample it packs the result into a message (including JSON) and sends it out, and the adapter reads it back. Its 99 % value also jumps to about 13 µs.
+- For the Project AirSim magnetometer, the field cannot be set from the host, so two instances run, one as configured and one without noise, and the difference is taken. This makes it heavier than the other sensors.
+- Peak memory: Hakoniwa 26.4 MB, Gazebo 49.6 MB, Project AirSim 25.9 MB (whole measurement process).

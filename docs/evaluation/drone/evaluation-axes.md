@@ -1,146 +1,146 @@
-# センサの評価軸
+# Sensor evaluation axes
 
-箱庭ドローン PRO のセンサ（箱庭センサのアダプタ）と、Gazebo のセンサ（gz-sensors のアダプタ）を、同じ口・同じ真値で比べるときの「何を、どう測るか」を決めます。
-合否の基準は、ここでは決めません。数値と、違いの理由を並べます。
+This page defines what to measure, and how, when we compare the Hakoniwa Drone PRO sensors (the Hakoniwa sensor adapter) with the Gazebo sensors (the gz-sensors adapter) through the same interface and with the same truth.
+Pass/fail criteria are not set here. We list the numbers and the reasons for the differences.
 
-## 1. 前提
+## 1. Assumptions
 
-### 1.1 比べるのはセンサの誤差のモデルだけ
+### 1.1 Only the sensor error models are compared
 
-物理は箱庭（MuJoCo）のままにし、センサの部分だけを差し替えて比べます。どちらの実装にも、ホストが同じ真値を渡します。
+The physics stays in Hakoniwa (MuJoCo). Only the sensor part is swapped. The host passes the same truth to both implementations.
 
 ```text
-ホスト：真値 → 取り付け位置姿勢（剛体の式、センサの軸へ回す） → 振動（任意）
+Host: truth → mounting pose (rigid-body equations, rotate to sensor axes) → vibration (optional)
                                 │
            ┌────────────────────┴────────────────────┐
            ▼                                         ▼
-  箱庭センサのアダプタ                       Gazebo のアダプタ
-  （センサ v2 のモデル）                     （gz-sensors）
+  Hakoniwa sensor adapter                    Gazebo adapter
+  (sensor v2 model)                          (gz-sensors)
            │                                         │
-           └──────────── 出力を並べる ───────────────┘
+           └──────────── line up outputs ────────────┘
 ```
 
-- 取り付け位置の効果（ω²r、α×r）と向きは、ホストが計算します。どちらの実装の性能でもありません。Gazebo でも、この計算は gz-sensors ではなく物理の側（gz-sim）が受け持っています。
-- ホストの計算が正しいかは、比較とは別に、手で計算した値と突き合わせて確かめます。
+- The host computes the effects of the mounting position (ω²r, α×r) and the orientation. They are not part of the performance of either implementation. In Gazebo too, this computation is done by the physics side (gz-sim), not by gz-sensors.
+- We check that the host computation is correct separately from the comparison, against values computed by hand.
 
-### 1.2 真値は「決まった動き」から作る
+### 1.2 Truth is generated from prescribed motion
 
-真値は、時刻の関数で作ります（例：一定の回転、正弦波の揺れ、一定の上昇）。物理のシミュレーションは動かしません。
-期待値は、2 つの実装のどちらからも独立に、式から手で計算します。
+Truth is generated as a function of time (for example constant rotation, sinusoidal swaying, constant climb). No physics simulation is run.
+Expected values are computed by hand from the equations, independently of both implementations.
 
-### 1.3 比べる版
+### 1.3 Versions compared
 
-| 実装 | 版 |
+| Implementation | Version |
 |---|---|
-| 箱庭 | 箱庭ドローン PRO のセンサ v2 のモデルを、この口のアダプタとして包んだもの（ドローン PRO と同じ計算。ソースは非公開） |
-| Gazebo | gz-sensors 10.2.0（Jetty）、標準のセンサとノイズのモデル。独自のプラグインは使わない |
-| Project AirSim | core_sim のセンサ（Imu・Magnetometer・Barometer・Gps）を、そのままコンパイルしたもの（hakoniwa-sensor-adapter-airsim の native アダプタ）。上流のコミット `92032a6c` に固定し、使う 140 ファイルの sha256 を照合してからビルドする |
+| Hakoniwa | The Hakoniwa Drone PRO sensor v2 models wrapped as adapters of this interface (the same computation as Drone PRO; the source is not public) |
+| Gazebo | gz-sensors 10.2.0 (Jetty), standard sensors and noise models. No custom plugins |
+| Project AirSim | The core_sim sensors (Imu, Magnetometer, Barometer, Gps) compiled as is (the native adapter of hakoniwa-sensor-adapter-airsim). Pinned to upstream commit `92032a6c`; the sha256 of the 140 files used is checked before building |
 
-## 2. 評価軸
+## 2. Evaluation axes
 
-| 軸 | 問い |
+| Axis | Question |
 |---|---|
-| 0. ノイズなしの一致 | 誤差を全部切ったとき、同じ値を出すか。違うなら、どこが・なぜ違うか |
-| 1. 確からしさ | 同じ意味の誤差の設定で、同じ統計になるか |
-| 2. 表せる範囲 | 実機のセンサの性質を、どこまで設定で表せるか |
-| 3. 再現性 | 同じ種で、同じ値の並びになるか |
-| 4. 速さ | 1 刻みあたり、どれだけ時間がかかるか |
-| 5. 入れやすさ | 使えるようになるまでの手間と重さ |
+| 0. No-noise agreement | With all errors turned off, do they output the same values? If not, where and why do they differ? |
+| 1. Accuracy | With error settings of the same meaning, do they give the same statistics? |
+| 2. Coverage | How far can the properties of real sensors be expressed by configuration? |
+| 3. Repeatability | With the same seed, do they give the same value sequence? |
+| 4. Speed | How much time does one physics step take? |
+| 5. Adoption effort | The effort and weight needed before it can be used |
 
-軸 0 から順に進めます。前の軸で合わないところが、後の軸の差の原因になるからです。
+We go through the axes in order from axis 0, because a mismatch in an earlier axis causes differences in later axes.
 
-## 3. 軸 0：ノイズなしの一致
+## 3. Axis 0: no-noise agreement
 
-ノイズ・ずれ・ドリフト・分解能・頭打ち・フィルタ・遅れを、両方とも全部切ります。
-このとき、センサの出力は真値を決まった式で変換しただけのものになります。乱数を使わないので、**値をそのまま突き合わせられます**（統計ではなく、1 つずつの値の差）。
+We turn off all noise, bias, drift, resolution, saturation, filtering and delay in both.
+The sensor output is then just the truth transformed by fixed equations. No random numbers are used, so **the values can be compared directly** (value by value, not statistically).
 
-ここで見えるのは次のことです。
+This shows:
 
-- 単位と座標の変換を間違えていないか
-- 測る時刻と、その間に値を保つ決まりが同じか
-- センサの中の「決まった式」（大気の式、緯度・経度への変換など）の違い
+- whether unit and frame conversions are wrong
+- whether the sample times, and the rule for holding values between them, are the same
+- differences in the fixed equations inside the sensor (atmosphere model, conversion to latitude and longitude, and so on)
 
-| センサ | 比べる値 | 期待値 | 見込まれる差 |
+| Sensor | Value compared | Expected value | Expected difference |
 |---|---|---|---|
-| ジャイロ | 角速度 | 真値と同じ | なし（一致するはず） |
-| 加速度 | 比力 | 真値と同じ | Gazebo は重力を足して引き直すので、丸めの差（1e-15 m/s² 程度）だけ |
-| 地磁気 | 磁場 | 世界の磁場をセンサの軸に回したもの | Gazebo はテスラで計算するので、単位の変換の丸めの差だけ |
-| 気圧 | 気圧 | 標準大気の式（独立に計算） | 大気の式が違う。箱庭は幾何学的な高さで g = 9.81、Gazebo はジオポテンシャル高度で別の定数。高さ 0〜3000 m で差を曲線にして記録する |
-| GPS | 緯度・経度・高度、速度 | ホストが渡した位置と速度 | 箱庭はローカルの位置から緯度・経度を自分で計算する（ジオイドなし、曲率の近似）。Gazebo はホストが渡した緯度・経度をそのまま使う。原点からの距離（0〜10 km）で差を記録する |
-| すべて | 測った時刻と `updated` | 時刻 0、T、2T、… | 周期を Hz で持つか、ms で持つか。刻みの整数倍にならない周期（例：3 ms の刻みで 250 Hz）で、境目の決め方を比べる |
+| Gyro | Angular velocity | Same as truth | None (should agree) |
+| Accelerometer | Specific force | Same as truth | Gazebo adds and subtracts gravity again, so only a rounding difference (about 1e-15 m/s²) |
+| Magnetometer | Magnetic field | World field rotated to the sensor axes | Gazebo computes in tesla, so only rounding from the unit conversion |
+| Barometer | Pressure | Standard atmosphere equations (computed independently) | The atmosphere equations differ. Hakoniwa uses geometric height with g = 9.81; Gazebo uses geopotential altitude with different constants. Record the difference as a curve for heights 0 to 3000 m |
+| GPS | Latitude, longitude, altitude, velocity | Position and velocity passed by the host | Hakoniwa computes latitude and longitude itself from the local position (no geoid, curvature approximation). Gazebo uses the latitude and longitude passed by the host as is. Record the difference against distance from the origin (0 to 10 km) |
+| All | Sample times and `updated` | Time 0, T, 2T, ... | Whether the period is held in Hz or in ms. Compare how the boundary is decided for a period that is not an integer multiple of the physics step (for example 250 Hz with a 3 ms physics step) |
 
-## 4. 軸 1：確からしさ
+## 4. Axis 1: accuracy
 
-誤差の設定を 1 つずつ入れて、統計を比べます。1 つ入れて合ったら、次を足します。
+We add error settings one at a time and compare statistics. When one matches, we add the next.
 
-| 段 | 入れる誤差 | 測る統計 | 期待値 |
+| Stage | Error added | Statistic measured | Expected value |
 |---|---|---|---|
-| 1 | ノイズの σ（5 つのセンサ） | 平均と標準偏差（N = 20,000） | 設定した σ |
-| 2 | 固定のずれ | 平均 | 設定したずれ |
-| 3 | 起動時に引くずれ | インスタンスごとの値の分布 | 設定した標準偏差。Gazebo は符号を 50% で反転する |
-| 4 | ゆっくり変わるずれ（Gauss-Markov） | 分散、自己相関（τ で e⁻¹ になるか） | 箱庭は σ、Gazebo は `dynamic_bias_stddev = σ·√(2/τ)` で換算した値 |
-| 5 | 分解能 | 出てくる値が刻みの整数倍か、丸め方 | 最も近い刻み、中間は 0 から遠い方 |
-| 6 | 測る周期 | 測った時刻の間隔 | 設定した周期 |
+| 1 | Noise σ (5 sensors) | Mean and standard deviation (N = 20,000) | Configured σ |
+| 2 | Bias | Mean | Configured bias |
+| 3 | Bias drawn at start-up | Distribution of values per instance | Configured standard deviation. Gazebo flips the sign with 50% probability |
+| 4 | Slowly varying bias (Gauss-Markov) | Variance, autocorrelation (does it reach e⁻¹ at τ) | Hakoniwa: σ. Gazebo: the value converted with `dynamic_bias_stddev = σ·√(2/τ)` |
+| 5 | Resolution | Whether output values are integer multiples of the step, rounding mode | Nearest step; ties away from 0 |
+| 6 | Sample period | Interval between sample times | Configured period |
 
-設定は、drone_config から両方の形式（箱庭は drone_config のまま、Gazebo は SDFormat）に書き換えて使います。書き換えられない項目は、軸 2 に回します。
+The settings are rewritten from drone_config into both formats (Hakoniwa keeps drone_config; Gazebo uses SDFormat). Items that cannot be rewritten go to axis 2.
 
-## 5. 軸 2：表せる範囲
+## 5. Axis 2: coverage
 
-実機のセンサの性質ごとに、設定で表せるかを並べます。アダプタの能力の表から作り、ソースで確かめます。
+For each property of real sensors, we list whether it can be expressed by configuration. The list is built from the adapter capability tables and checked against the source.
 
-| 性質 | 例 |
+| Property | Example |
 |---|---|
-| 測れる範囲（頭打ち） | ジャイロ ±2000°/s、加速度 ±16 g |
-| センサの値の遅れ | 気圧 60 ms、GPS 100 ms |
-| 目盛りの誤差・軸の干渉 | ジャイロ ±0.5〜2 % |
-| IMU のフィルタ | 6 次・125 Hz |
-| 硬鉄・軟鉄 | 地磁気 |
-| 天気 | 海面の気圧・気温 |
-| 気温・気圧高度の出力 | 気圧 |
-| 受信機の報告 | GPS の精度の推定、衛星の数、測位の種類、進行方向 |
-| ノイズの単位 | GPS の水平のノイズがメートルか度か |
+| Measurement range (saturation) | Gyro ±2000°/s, accelerometer ±16 g |
+| Sensor value delay | Barometer 60 ms, GPS 100 ms |
+| Scale error, crosstalk | Gyro ±0.5 to 2 % |
+| IMU filter | 6th order, 125 Hz |
+| Hard iron, soft iron | Magnetometer |
+| Weather | Sea-level pressure and temperature |
+| Temperature and pressure altitude output | Barometer |
+| Receiver reports | GPS accuracy estimate, number of satellites, fix type, heading |
+| Noise unit | Whether GPS horizontal noise is in metres or degrees |
 
-表せないものは「ない」と記録し、消さずに残します。
+What cannot be expressed is recorded as "not available" and kept, not removed.
 
-## 6. 軸 3：再現性
+## 6. Axis 3: repeatability
 
-| 場面 | 確かめること |
+| Case | What is checked |
 |---|---|
-| 同じインスタンス | リセットのあと、同じ値の並びに戻るか |
-| 新しいインスタンス | 同じ種で作り直して、同じ値の並びになるか |
-| センサを足したとき | ほかのセンサを足しても、あるセンサの値の並びが変わらないか |
-| 別の OS | Mac、Linux、Windows で、同じ値の並びになるか |
-| 複数のスレッド | 別のインスタンスを、別のスレッドから同時に動かせるか |
-| 同じ PC の複数のプロセス | ほかのプロセスの値が混ざらないか |
+| Same instance | After reset, does it return to the same value sequence? |
+| New instance | Recreated with the same seed, does it give the same value sequence? |
+| Adding sensors | Does adding other sensors leave one sensor's value sequence unchanged? |
+| Different OS | Same value sequence on Mac, Linux and Windows? |
+| Multiple threads | Can different instances run at the same time from different threads? |
+| Multiple processes on the same PC | Are values from other processes kept out? |
 
-## 7. 軸 4：速さ
+## 7. Axis 4: speed
 
-- 5 つのセンサを物理の刻み（1 ms）ごとに動かし、1 刻みあたりの時間を測ります（中央値と 99 パーセンタイル）。
-- センサごとの内訳と、メモリも測ります。
-- 同じ PC・同じ OS、画面なしで測ります。
+- Run the five sensors every physics step (1 ms) and measure the time per step (median and 99th percentile).
+- Also measure the breakdown by sensor, and memory.
+- Measure on the same PC, same OS, without a display.
 
-## 8. 軸 5：入れやすさ
+## 8. Axis 5: adoption effort
 
-| 項目 | 測るもの |
+| Item | What is measured |
 |---|---|
-| 依存 | 入るパッケージの数と大きさ、実行に要るライブラリの数と大きさ |
-| ビルドできる OS | Mac、Linux、Windows |
-| 副作用 | 通信のスレッド、ネットワークのポート、プロセスの中の共有の状態 |
+| Dependencies | Number and size of packages installed; number and size of libraries needed at run time |
+| OSes it builds on | Mac, Linux, Windows |
+| Side effects | Transport threads, network ports, shared state in the process |
 
-## 9. 比べる前から分かっていること
+## 9. Known before comparing
 
-Gazebo の既知の振る舞いは、比較の基準にはせず、別に記録します。
+Known Gazebo behaviour is recorded separately, not used as the comparison reference.
 
-- GPS の水平のノイズは、メートルではなく緯度・経度の**度**に加わる。
-- 地磁気・気圧・GPS は、ノイズを足す関数を時間の幅 0 で呼ぶため、時間で変わるずれが進まない。
-- 乱数はプロセスに 1 つ。センサを作る順番・呼ぶ順番で、ほかのセンサの値が変わる。
-- 気圧には値を読む関数がなく、通信のメッセージでしか値が出ない。
-- 測らなかった刻みの getter は、最後に測った値ではなく、最後に渡した入力を返すことがある。
+- GPS horizontal noise is added to latitude and longitude in **degrees**, not metres.
+- The magnetometer, barometer and GPS call the noise function with a time step of 0, so the time-varying bias does not advance.
+- There is one random number generator per process. The order in which sensors are created and called changes the values of other sensors.
+- The barometer has no function to read its value; the value comes out only as a transport message.
+- On a physics step where no sample was taken, the getter can return the last input passed instead of the last measured value.
 
-## 10. 出すもの
+## 10. Outputs
 
-軸ごとに、次をこのディレクトリの下に残します。
+For each axis, the following are kept under this directory:
 
-- 試験のプログラム（同じ真値を両方のアダプタに流すもの）
-- 結果の表（数値）とグラフ
-- 差の説明（なぜ違うか）
+- the test program (which feeds the same truth to both adapters)
+- result tables (numbers) and plots
+- explanation of the differences (why they differ)

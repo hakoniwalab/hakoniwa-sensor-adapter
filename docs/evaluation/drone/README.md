@@ -1,21 +1,21 @@
-# ドローンのセンサ：評価の結果（2026-11-01）
+# Drone sensors: evaluation results (2026-11-01)
 
-[評価の軸](evaluation-axes.md) の 6 つの軸の結果です。箱庭ドローン PRO のセンサ（センサ v2）、Gazebo のセンサ（gz-sensors 10.2.0）、Project AirSim のセンサ（core_sim をそのままコンパイルしたもの）を、同じ口・同じ真値で比べました。
+These are the results for the six axes in [Evaluation axes](evaluation-axes.md). We compared the Hakoniwa Drone PRO sensors (sensor v2), the Gazebo sensors (gz-sensors 10.2.0), and the Project AirSim sensors (core_sim compiled as is), through the same interface and with the same truth.
 
-macOS（arm64）で動かしました。合否の基準は決めていません。数値と、違いの理由だけを並べます。
+We ran them on macOS (arm64). We do not set pass/fail criteria. We list only the numbers and the reasons for the differences.
 
-| 軸 | 箱庭 | Gazebo | Project AirSim（core_sim） | 詳しく |
+| Axis | Hakoniwa | Gazebo | Project AirSim (core_sim) | Details |
 |---|---|---|---|---|
-| 0. ノイズなしの一致 | 基準 | ジャイロ・加速度・地磁気・気圧（US 1976）・測る時刻は一致。GPS の地球への写し方が違う | ジャイロ・加速度は 32 ビットの丸めの差、地磁気・測る時刻は一致。気圧は US 1976 と 0.09 Pa 以内、気圧高度が最大 2.65 m ずれる。GPS は地球を球とみなして写し、緯度・経度を 32 ビットで出す | [axis0-no-noise.md](axis0-no-noise.md) |
-| 1. 確からしさ | 21 項目すべて設定どおり | 固定のずれの符号が 50 % で逆、地磁気・気圧・GPS のずれが動かない、地磁気の分解能が効かない、GPS の東のノイズが縮む | ノイズ・固定のずれ・ランダムウォークは設定どおり。種が固定で、何回作っても同じ値の並び（地磁気の起動時のずれも毎回同じ）。気圧のゆっくり変わるずれが σ の 1/10。GPS にノイズがない | [axis1-accuracy.md](axis1-accuracy.md) |
-| 2. 表せる範囲（18 項目） | 18 | 4（条件付き 2） | 1（条件付き 8） | [axis2-coverage.md](axis2-coverage.md) |
-| 3. 再現性（5 場面） | 5 場面すべて同じ | ほかのセンサ・スレッド・リセットで並びが変わる | 5 場面すべて同じ（種がいつも同じため。ホストの種は使わない） | [axis3-repeatability.md](axis3-repeatability.md) |
-| 4. 速さ（5 センサの 1 刻みの平均） | 0.11〜0.18 µs | 0.68〜0.77 µs | 0.79〜0.85 µs | [axis4-speed.md](axis4-speed.md) |
-| 5. 入れやすさ | 追加の依存なし | 実行に 37 ライブラリ・約 29 MB、通信のスレッド | nng 1.11・msgpack-cxx・Eigen・nlohmann/json と、固定したコミットの 140 ファイル。通信の口は開かない（待つだけのスレッドが立つ） | [axis5-adoption.md](axis5-adoption.md) |
+| 0. No-noise agreement | Reference | Gyro, accelerometer, magnetometer, barometer (US 1976) and sample times agree. GPS maps onto the Earth differently | Gyro and accelerometer differ by 32-bit rounding; magnetometer and sample times agree. Barometer is within 0.09 Pa of US 1976; pressure altitude is off by up to 2.65 m. GPS treats the Earth as a sphere and outputs latitude and longitude as 32-bit values | [axis0-no-noise.md](axis0-no-noise.md) |
+| 1. Accuracy | All 21 items as configured | Sign of the bias flipped with 50 % probability; magnetometer, barometer and GPS dynamic bias does not move; magnetometer resolution has no effect; GPS east noise shrinks | Noise, bias and random walk as configured. The seed is fixed, so every instance gives the same value sequence (the magnetometer turn-on bias is also the same every time). Barometer slowly varying bias is 1/10 of σ. GPS has no noise | [axis1-accuracy.md](axis1-accuracy.md) |
+| 2. Coverage (18 items) | 18 | 4 (2 conditional) | 1 (8 conditional) | [axis2-coverage.md](axis2-coverage.md) |
+| 3. Repeatability (5 cases) | Same in all 5 cases | Sequence changes with other sensors, threads and reset | Same in all 5 cases (because the seed is always the same; the host seed is not used) | [axis3-repeatability.md](axis3-repeatability.md) |
+| 4. Speed (mean per physics step, 5 sensors) | 0.11 to 0.18 µs | 0.68 to 0.77 µs | 0.79 to 0.85 µs | [axis4-speed.md](axis4-speed.md) |
+| 5. Adoption effort | No extra dependencies | 37 runtime libraries, about 29 MB, a transport thread | nng 1.11, msgpack-cxx, Eigen, nlohmann/json, and 140 files from a pinned commit. No transport port is opened (threads that only wait are started) | [axis5-adoption.md](axis5-adoption.md) |
 
-## 測り方
+## Method
 
-- 比べるプログラムは、3 つのアダプタをこの口（`IImuSensorAdapter` など）だけで呼び、同じ真値の列を渡して出力を並べます。
-- Gazebo（hakoniwa-sensor-adapter-gazebo）と Project AirSim（hakoniwa-sensor-adapter-airsim）のアダプタは公開しているので、その列は誰でも作り直せます。
-- 箱庭の列は、箱庭ドローン PRO のセンサのモデルで測りました。比べるプログラムと箱庭のアダプタは、箱庭ドローン PRO の中にあります（非公開）。
-- 測った日：2026-11-01。機械：macOS（arm64）。
+- The comparison program calls the three adapters only through this interface (`IImuSensorAdapter` and others), passes the same truth sequence, and lines up the outputs.
+- The Gazebo (hakoniwa-sensor-adapter-gazebo) and Project AirSim (hakoniwa-sensor-adapter-airsim) adapters are public, so anyone can reproduce those columns.
+- The Hakoniwa columns were measured with the Hakoniwa Drone PRO sensor models. The comparison program and the Hakoniwa adapter are part of Hakoniwa Drone PRO (not public).
+- Date measured: 2026-11-01. Machine: macOS (arm64).

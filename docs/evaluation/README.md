@@ -1,26 +1,26 @@
-# センサの比較
+# Sensor comparison
 
-この口（hakoniwa-sensor-adapter）の上で、箱庭のセンサと、ほかのシミュレータのセンサを比べた結果です。
+These are the results of comparing Hakoniwa's sensors with the sensors of other simulators, on top of this interface (hakoniwa-sensor-adapter).
 
-## 比べ方
+## How we compare
 
-どの実装も、同じ口のアダプタとして包み、ホストから同じ真値の列を渡して、出力を並べます。物理は同じで、差はセンサの誤差のモデルの差だけになります。
+Each implementation is wrapped as an adapter of the same interface. The host passes the same sequence of truth values to each, and we line up the outputs. The physics is the same, so the only difference is the difference between the sensor error models.
 
 ```text
-真値の列 ─┬─▶ 箱庭のアダプタ            ─┐
-          ├─▶ Gazebo（gz-sensors）のアダプタ ├─▶ 出力を並べる
-          └─▶ Project AirSim のアダプタ   ─┘
+truth sequence ─┬─▶ Hakoniwa adapter               ─┐
+                ├─▶ Gazebo (gz-sensors) adapter    ├─▶ line up outputs
+                └─▶ Project AirSim adapter         ─┘
 ```
 
-- 比べる軸は 6 つです。ノイズなしの一致、確からしさ、表せる範囲、再現性、速さ、入れやすさ。定義は [評価の軸](drone/evaluation-axes.md) です（ドローンのセンサで決め、力覚センサにも同じ軸を使う）。
-- 合否の基準は決めません。数値と、違いの理由を並べます。
-- Gazebo と Project AirSim のアダプタは公開しています（hakoniwa-sensor-adapter-gazebo、hakoniwa-sensor-adapter-airsim）。その列は誰でも作り直せます。
-- 箱庭の列は、箱庭の製品（箱庭ドローン PRO など）に入っているセンサのモデルで測りました。そのソースは公開していません。
+- There are six axes of comparison: no-noise agreement, accuracy, coverage, repeatability, speed, and adoption effort. They are defined in [Evaluation axes](drone/evaluation-axes.md). They were defined for the drone sensors, and the same axes are used for the force-torque sensor.
+- We do not set pass/fail criteria. We list the numbers and the reasons for the differences.
+- The Gazebo and Project AirSim adapters are public (hakoniwa-sensor-adapter-gazebo, hakoniwa-sensor-adapter-airsim). Anyone can reproduce those columns.
+- The Hakoniwa columns were measured with the sensor models that ship in Hakoniwa products (Hakoniwa Drone PRO and others). Their sources are not public.
 
-## センサの種類ごとの結果
+## Results by sensor type
 
-| センサ | 比べたもの | 結果 |
+| Sensor | Compared | Results |
 |---|---|---|
-| ドローンのセンサ（IMU、地磁気、気圧、GPS） | 箱庭ドローン PRO のセンサ v2、gz-sensors 10.2.0、Project AirSim の core_sim | [ドローンのセンサ](drone/README.md) |
-| 6 軸の力覚センサ | 箱庭の力覚センサのモデル、gz-sensors 10.2.0。機能の範囲は MuJoCo と mujoco_ros2_control も | [力覚センサ](force-torque/README.md) |
-| 関節のセンサ（エンコーダ、関節トルク） | 箱庭の関節のセンサのモデルと、Gazebo・MuJoCo・mujoco_ros2_control・Webots が出す値（真値） | [関節のセンサ](joint/README.md) |
+| Drone sensors (IMU, magnetometer, barometer, GPS) | Hakoniwa Drone PRO sensor v2, gz-sensors 10.2.0, Project AirSim core_sim | [Drone sensors](drone/README.md) |
+| 6-axis force-torque sensor | Hakoniwa force-torque sensor model, gz-sensors 10.2.0. Feature coverage also for MuJoCo and mujoco_ros2_control | [Force-torque sensor](force-torque/README.md) |
+| Joint sensors (encoder, joint torque) | Hakoniwa joint sensor model, and the values (truth) output by Gazebo, MuJoCo, mujoco_ros2_control and Webots | [Joint sensors](joint/README.md) |

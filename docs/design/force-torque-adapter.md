@@ -1,162 +1,162 @@
-# 力覚センサアダプタの口（設計）
+# Force-torque sensor adapter interface (design)
 
-6 軸の力覚センサ（力 Fx・Fy・Fz とモーメント Tx・Ty・Tz）の口を決めます。
-下調べ（シミュレータと実機の比較）は [force-torque-survey.md](force-torque-survey.md) です。今のセンサの口（[imu-adapter.md](imu-adapter.md)、[range-image-adapter.md](range-image-adapter.md)）と同じ考え方で作ります。
+This document defines the interface for 6-axis force-torque sensors (forces Fx, Fy, Fz and moments Tx, Ty, Tz).
+The survey (comparison of simulators and real devices) is [force-torque-survey.md](force-torque-survey.md). The interface follows the same approach as the existing sensor interfaces ([imu-adapter.md](imu-adapter.md), [range-image-adapter.md](range-image-adapter.md)).
 
-この文書は、設定の値の意味と、誤差を足す順番と式まで決めます。同じ設定・同じ真値・同じ種なら、どの実装でも同じ意味の値を出すためです。
+This document defines the meaning of the configuration values, and the order and formulas for adding errors. The goal is that, with the same configuration, the same truth, and the same seed, every implementation outputs values with the same meaning.
 
-## 1. 目的と範囲
+## 1. Purpose and scope
 
-- ロボットアームの手首や工具の取り付け部に付ける、6 軸の力覚センサの口です。似せる ROS の型は `geometry_msgs/WrenchStamped` です。
-- ホストが真値の力を渡し、アダプタが「センサが測った値」を返します。アダプタは、センサの誤差のモデルを受け持ちます。
-- 口は ROS に依存しません。単位は N と N·m です。
-- 関節トルクのセンサ（関節ごとの値）は、この口に含めません。誤差の性質が違うので、別の口で決めます。
+- This is the interface for a 6-axis force-torque sensor mounted on the wrist of a robot arm or at a tool mount. The ROS type it resembles is `geometry_msgs/WrenchStamped`.
+- The host passes the true force, and the adapter returns "the value the sensor measured". The adapter owns the sensor error model.
+- The interface does not depend on ROS. Units are N and N·m.
+- Joint torque sensors (one value per joint) are not part of this interface. Their errors behave differently, so they are defined in a separate interface.
 
-## 2. ホストとアダプタの受け持ち
+## 2. Host and adapter responsibilities
 
 ```text
-ホスト：物理の真値（センサより先の部品から伝わる力） → センサの軸・基準点へ移す
+Host: physics truth (force transmitted from the parts beyond the sensor) → moved to the sensor axes and reference point
                                                         │
-アダプタ（物理の刻みごと）：                              ▼
-        過負荷の判定（真値） → 遅れ → ローパス
-アダプタ（測る周期の境目ごと）：
-        非線形 → 較正の行列（目盛り・軸の干渉） → ゼロ点のずれ → ドリフト → ノイズ
-              → 頭打ち → ゼロ点合わせを引く → 分解能 → 出力
+Adapter (every physics step):                           ▼
+        overload check (truth) → delay → low-pass
+Adapter (at each sample period boundary):
+        nonlinearity → calibration matrix (scale, crosstalk) → bias → drift → noise
+              → saturation → subtract tare → resolution → output
                                                         │
-ホスト：                                                 ▼
-        工具の重さの補償（使うとき） → 制御器・ログ・PDU
+Host:                                                   ▼
+        tool weight compensation (when used) → controller, log, PDU
 ```
 
-| 受け持ち | 中身 | 理由 |
+| Owner | Content | Reason |
 |---|---|---|
-| ホスト | 物理の真値。センサの軸と基準点への変換 | どの実装にも同じ入力を渡すため。比べたときの差が、誤差のモデルの差だけになる |
-| アダプタ | 4 章の誤差のモデル、ゼロ点合わせ、過負荷の判定 | センサの誤差のモデルそのもの |
-| ホスト | 工具の重さと慣性の補償 | 実機でも、センサではなく制御器や利用者がする仕事 |
+| Host | Physics truth. Transformation to the sensor axes and reference point | To give every implementation the same input. Differences in a comparison then come only from the error models |
+| Adapter | The error model in section 4, tare, overload check | This is the sensor error model itself |
+| Host | Tool weight and inertia compensation | On real devices, this is done by the controller or the user, not the sensor |
 
-## 3. 決めたこと（原則）
+## 3. Decisions (principles)
 
-### 3.1 真値の意味
+### 3.1 Meaning of the truth
 
-ホストは、物理の刻みごとに、次の値を渡します。
+The host passes the following values every physics step.
 
-| 渡すもの | 座標 | 単位 |
+| Value | Frame | Unit |
 |---|---|---|
-| 力 | センサの軸 | N |
-| モーメント（センサの原点まわり） | センサの軸 | N·m |
-| センサの姿勢（世界 NWU から見た回転） | 四元数 | — |
-| 重力の加速度 | 世界 NWU | m/s² |
+| Force | Sensor axes | N |
+| Moment (about the sensor origin) | Sensor axes | N·m |
+| Sensor orientation (rotation seen from world NWU) | Quaternion | — |
+| Gravitational acceleration | World NWU | m/s² |
 
-- **向き：** センサより先の部品（工具の側）が、センサより手前の部品（ロボットの側）に及ぼす力とモーメントです。工具をぶら下げて静止しているとき、力は工具の重さで、重力の向きを向きます。
-- **基準点：** モーメントは、センサの原点まわりです。
-- **工具の重さと慣性を含みます。** 接触の力、工具の重さ、工具が加速するときの慣性の力の合計です。
-- 姿勢と重力は補助の値です。工具の重さの補償をアダプタの外で計算するときや、重力の向きを使う実装のために渡します。
-- 世界は NWU、センサは FLU で渡します。物理エンジンの決まり（MuJoCo の子から親の向きなど）との変換は、ホストが口の境目で行います。
+- **Direction:** The force and moment that the parts beyond the sensor (the tool side) apply to the parts before the sensor (the robot side). When a tool hangs at rest, the force equals the tool weight and points in the direction of gravity.
+- **Reference point:** The moment is about the sensor origin.
+- **Tool weight and inertia are included.** The value is the sum of the contact force, the tool weight, and the inertial force when the tool accelerates.
+- Orientation and gravity are auxiliary values. They are passed for computing tool weight compensation outside the adapter, and for implementations that use the direction of gravity.
+- The world is passed in NWU and the sensor in FLU. The host converts from the physics engine conventions (such as MuJoCo's child-to-parent direction) at the interface boundary.
 
-### 3.2 ゼロ点合わせ（tare）
+### 3.2 Tare
 
-- `tare()` を呼ぶと、アダプタは、直前の `tare_window`（既定 0.1 秒）の間に測った値の平均を覚えます。以後の出力から、その平均を引きます。
-  - 平均に使うのは、頭打ちのあと・ゼロ点合わせと分解能の前の値です（4 章の順番）。
-  - 作ったあと・`reset()` のあとに測った値が `tare_window` に満たないときは、あるだけの値で平均します。1 つもないときは、ゼロ点合わせは失敗し、false を返します。
-  - 1 回の値ではなく平均を覚えるのは、1 回分のノイズが固定のずれとして残らないようにするためです。
-- ドリフトは消えずに進みます。消すには、もう一度 `tare()` を呼びます。実機と同じです。
-- `clear_tare()` で、覚えた値を消します。`reset()` でも消えます。
+- When `tare()` is called, the adapter stores the average of the values measured during the preceding `tare_window` (default 0.1 s). It subtracts that average from all later outputs.
+  - The average uses the values after saturation and before tare and resolution (the order in section 4).
+  - If, after creation or after `reset()`, less than `tare_window` of values has been measured, the adapter averages the values it has. If there are no values, the tare fails and returns false.
+  - The adapter stores an average instead of a single value so that the noise of one sample does not remain as a fixed offset.
+- Drift does not disappear and keeps progressing. To remove it, call `tare()` again. This is the same as on real devices.
+- `clear_tare()` clears the stored value. `reset()` also clears it.
 
-### 3.3 工具の重さの補償は口の外
+### 3.3 Tool weight compensation is outside the interface
 
-- センサの値は、実機と同じく、工具の重さと慣性を含みます。
-- 工具の質量・重心からの補償は、ホストや制御器の機能として、センサの外に置きます。入れ切りできるようにします。
-- ゼロ点合わせで工具の重さを消す使い方（実機でよくある使い方）は、3.2 のとおりできます。ただし、姿勢が変わると重さの向きが変わるので、ずれが出ます。これも実機と同じです。
+- As on real devices, the sensor values include the tool weight and inertia.
+- Compensation from the tool mass and center of gravity is placed outside the sensor, as a function of the host or the controller. It can be switched on and off.
+- Removing the tool weight with a tare (a common practice on real devices) works as described in 3.2. However, when the orientation changes, the direction of the weight changes, so an offset appears. This is also the same as on real devices.
 
-### 3.4 時刻、乱数、リセット、ログ
+### 3.4 Time, random numbers, reset, log
 
-今のセンサの口と同じです（[imu-adapter.md](imu-adapter.md) の 3.4、3.6、3.9）。
+These are the same as in the existing sensor interfaces ([imu-adapter.md](imu-adapter.md) sections 3.4, 3.6, and 3.9).
 
-- ホストは、物理の刻みごとにシミュレーションの時刻（ns）を付けて真値を渡します。
-- 測る周期 T は、1 / `update_rate` を物理の刻みの整数倍に丸めた値です。ずれるときは警告を出します（箱庭のほかのセンサと同じ決まり）。測る周期の境目（時刻 0、T、2T、…）で測り、その間は前の値を返します。
-- 乱数は、種・機体の名前と番号・センサの名前から、特性ごとに別の列を作ります（特性：`calibration`、`nonlinearity`、`bias`、`drift`、`noise`）。特性の列は互いに独立なので、ある特性を切っても、ほかの特性の値の並びは変わりません。
-- `reset()` で、遅れの履歴、フィルタの状態、ドリフト、作るときに引いた個体の誤差、ゼロ点合わせ、乱数の列を、作ったときの状態に戻します。
-- ログの列（ドリフトの今の値、ゼロ点合わせで覚えた値、フィルタの直後の値など）は、`log_columns()` と `log_values()` で読みます。
+- The host passes the truth every physics step with the simulation time (ns).
+- The sample period T is 1 / `update_rate` rounded to an integer multiple of the physics step. If it does not match exactly, a warning is printed (the same rule as other Hakoniwa sensors). The sensor measures at the sample period boundaries (time 0, T, 2T, ...) and returns the previous value in between.
+- Random numbers come from the seed, the vehicle name and index, and the sensor name. A separate stream is created for each characteristic (characteristics: `calibration`, `nonlinearity`, `bias`, `drift`, `noise`). The streams are independent, so turning off one characteristic does not change the sequence of values of the others.
+- `reset()` returns the delay history, filter state, drift, the per-unit errors drawn at creation, the tare, and the random streams to their state at creation.
+- Log columns (current drift, the value stored by tare, the value right after the filter, and so on) are read with `log_columns()` and `log_values()`.
 
-### 3.5 値の印（flags）
+### 3.5 Value flags
 
-- 頭打ち：共通のビット `kSensorFlagSaturated` を使います。この値のどれかの軸が、測れる範囲の端で切られたときに立てます。
-- 過負荷：力覚センサの印 `kForceTorqueFlagOverloaded` を足します。前に測ってから今までの物理の刻みのどこかで、真値のどれかの軸が過負荷の値を超えたときに立てます。判定は、遅れ・フィルタ・誤差を足す前の真値で行います。過負荷は物の壊れ方なので、測った値ではなく、かかった荷重で決まるからです。
-- 決めていないビットは 0 にします。
+- Saturation: uses the common bit `kSensorFlagSaturated`. It is set when any axis of the value was clipped at the end of the measurable range.
+- Overload: adds the force-torque flag `kForceTorqueFlagOverloaded`. It is set when, at any physics step since the previous measurement, any axis of the truth exceeded the overload value. The check uses the truth before delay, filtering, and errors. Overload is about how the device breaks, so it depends on the applied load, not on the measured value.
+- Undefined bits are 0.
 
-### 3.6 インスタンスとスレッド
+### 3.6 Instances and threads
 
-- 1 つのインスタンスは、1 つの機体の 1 つの力覚センサです。1 つのスレッドからだけ呼びます。
-- 別のインスタンスを別のスレッドから呼んでよいかどうかは、能力の表で宣言します。
+- One instance is one force-torque sensor on one vehicle. It is called from only one thread.
+- Whether different instances may be called from different threads is declared in the capability table.
 
-## 4. 誤差のモデル（式）
+## 4. Error model (formulas)
 
-記号：軸 i = Fx, Fy, Fz, Tx, Ty, Tz。R_i はその軸の測れる範囲（`range`。Fx・Fy は `fxy`、Fz は `fz`、Tx・Ty は `txy`、Tz は `tz` の値）。x は真値、y は測った値。U(−a, a) は −a から a の一様分布、N(0, σ) は正規分布。
+Notation: axis i = Fx, Fy, Fz, Tx, Ty, Tz. R_i is the measurable range of that axis (`range`: the value of `fxy` for Fx and Fy, `fz` for Fz, `txy` for Tx and Ty, `tz` for Tz). x is the truth and y is the measured value. U(−a, a) is the uniform distribution from −a to a, and N(0, σ) is the normal distribution.
 
-### 4.1 物理の刻みごと
+### 4.1 Every physics step
 
-| 段 | 式・決まり |
+| Stage | Formula or rule |
 |---|---|
-| 過負荷の判定 | どれかの軸で \|x_i\| > O_i なら、次に測る値に過負荷の印を立てる。O_i は過負荷の値 |
-| 遅れ | `delay` だけ前の真値を使う。物理の刻みに切り捨てる（遅れの刻み数 = floor(delay / 刻み)）。始まってすぐで履歴が足りないときは、時刻 0 の真値を使う |
-| ローパス | 2 次の Butterworth。遮断周波数 `lowpass_cutoff_hz` で、物理の刻みで双一次変換（遮断周波数の事前ひずみ補正あり）。初期の状態は、時刻 0 の真値で定常 |
+| Overload check | If \|x_i\| > O_i on any axis, set the overload flag on the next measured value. O_i is the overload value |
+| Delay | Use the truth from `delay` earlier. Truncated to the physics step (number of delay steps = floor(delay / step)). At the start, when the history is not long enough, use the truth at time 0 |
+| Low-pass | 2nd-order Butterworth. Cutoff frequency `lowpass_cutoff_hz`, bilinear transform at the physics step (with prewarping of the cutoff frequency). The initial state is steady at the truth at time 0 |
 
-### 4.2 測る周期の境目ごと
+### 4.2 At each sample period boundary
 
-ローパスを通った値 x̃ を、軸ごとに範囲で割った無次元の値 u_i = x̃_i / R_i にしてから、次の順に足します。
+The low-pass output x̃ is divided by the range per axis to get a dimensionless value u_i = x̃_i / R_i. Then the following are added in order.
 
-| 段 | 式・決まり |
+| Stage | Formula or rule |
 |---|---|
-| 非線形 | u_i ← u_i + n_i · 4 · u_i · (1 − \|u_i\|)。n_i は作るときに U(−NL_i, NL_i) で引く（NL_i は非線形の %FS ÷ 100）。\|u_i\| > 1 では足さない。範囲の 0 と ±端でずれが 0、半分で最大 NL_i になる、端点の基準の非線形 |
-| 較正の行列 | u ← C · u。C = I + E。対角 E_ii は U(−S, S)（S は目盛りの誤差の %FS ÷ 100）、それ以外 E_ij は U(−X, X)（X は軸の干渉の % ÷ 100）。作るときに 1 回引く。軸 j に範囲いっぱいの力がかかると、軸 i に最大 X·R_i の値が出る |
-| 元の単位へ | y_i = u_i · R_i |
-| ゼロ点のずれ | y_i ← y_i + b_i。b_i は作るときに U(−B_i, B_i) で引く |
-| ドリフト | y_i ← y_i + d_i。d_i は測るたびに d_i ← d_i + N(0, D_i · √(T / 3600 s))。D_i は 1 時間あたりのドリフト（1 時間で σ が D_i になるランダムウォーク）。最初は 0 |
-| ノイズ | y_i ← y_i + N(0, σ_i)。σ_i は 4.3 の換算 |
-| 頭打ち | \|y_i\| > R_i なら ±R_i で切り、頭打ちの印を立てる |
-| ゼロ点合わせ | y_i ← y_i − t_i。t_i は 3.2 で覚えた値（なければ 0） |
-| 分解能 | y_i ← q_i · round(y_i / q_i)。q_i は分解能。0 なら量子化しない |
+| Nonlinearity | u_i ← u_i + n_i · 4 · u_i · (1 − \|u_i\|). n_i is drawn at creation from U(−NL_i, NL_i) (NL_i is the nonlinearity in %FS ÷ 100). Not added when \|u_i\| > 1. This is an end-point based nonlinearity: the deviation is 0 at 0 and at ±full range, and maximum NL_i at half range |
+| Calibration matrix | u ← C · u. C = I + E. Diagonal E_ii from U(−S, S) (S is the scale error in %FS ÷ 100), other E_ij from U(−X, X) (X is the crosstalk in % ÷ 100). Drawn once at creation. When a full-range force acts on axis j, a value of up to X·R_i appears on axis i |
+| Back to physical units | y_i = u_i · R_i |
+| Bias | y_i ← y_i + b_i. b_i is drawn at creation from U(−B_i, B_i) |
+| Drift | y_i ← y_i + d_i. At each measurement, d_i ← d_i + N(0, D_i · √(T / 3600 s)). D_i is the drift per hour (a random walk whose σ reaches D_i in 1 hour). Initially 0 |
+| Noise | y_i ← y_i + N(0, σ_i). σ_i is converted as in 4.3 |
+| Saturation | If \|y_i\| > R_i, clip to ±R_i and set the saturation flag |
+| Tare | y_i ← y_i − t_i. t_i is the value stored in 3.2 (0 if none) |
+| Resolution | y_i ← q_i · round(y_i / q_i). q_i is the resolution. If 0, no quantization |
 
-どの段も、設定に書かなければ使いません（値が 0 と同じ）。何も書かなければ、誤差のない値になります。
+A stage is not used if it is not written in the configuration (the same as a value of 0). If nothing is written, the output has no error.
 
-### 4.3 ノイズの換算
+### 4.3 Noise conversion
 
-データシートのノイズは、「そのセンサの出力の周期とフィルタのまま、静止して 1 秒間に出た値の σ」として読みます。
+The datasheet noise is read as "the σ of the values output in 1 second at rest, at that sensor's output period and filter".
 
-1. データシートの値を σ₀ にします。`1sigma` ならそのまま、`6sigma_pp`（6σ の幅）なら 6 で割ります。
-2. データシートの雑音の帯域 B₀ を決めます。`bandwidth_hz` があればその値、なければ `rate_hz` ÷ 2（そのときの出力の周期のナイキスト周波数）。
-3. このアダプタの雑音の帯域 B を決めます。ローパスがあれば min(`lowpass_cutoff_hz`, `update_rate` ÷ 2)、なければ `update_rate` ÷ 2。
-4. 白色ノイズとして、σ = σ₀ · √(B / B₀)。
+1. Let the datasheet value be σ₀. For `1sigma`, use it as is. For `6sigma_pp` (6σ peak-to-peak width), divide by 6.
+2. Determine the datasheet noise bandwidth B₀. If `bandwidth_hz` is given, use that value. Otherwise use `rate_hz` ÷ 2 (the Nyquist frequency of that output period).
+3. Determine this adapter's noise bandwidth B. With a low-pass, min(`lowpass_cutoff_hz`, `update_rate` ÷ 2). Without, `update_rate` ÷ 2.
+4. As white noise, σ = σ₀ · √(B / B₀).
 
-ノイズは、ローパスのあとに、測る周期の境目ごとに足します。
+Noise is added after the low-pass, at each sample period boundary.
 
-## 5. 設定
+## 5. Configuration
 
-アダプタは、自分の形式の設定ファイルだけを読みます。箱庭のアダプタの設定は、次の形で書きます。
+The adapter reads only configuration files in its own format. The Hakoniwa adapter configuration is written as follows.
 
-- 軸ごとの値は、軸の組（`fxy`、`fz`、`txy`、`tz`）で書きます。
-- 値は数か、単位の印つきの文字列です。`"5%"` は、その軸の範囲 R_i に対する割合（%FS）です。範囲と過負荷の `"500%"` も同じく範囲に対する割合です。
+- Per-axis values are written per axis group (`fxy`, `fz`, `txy`, `tz`).
+- A value is a number or a string with a unit suffix. `"5%"` is a ratio to the range R_i of that axis (%FS). `"500%"` for range and overload is also a ratio to the range.
 
-| キー | 意味 | 単位・形 | 省略したとき |
+| Key | Meaning | Unit or form | When omitted |
 |---|---|---|---|
-| `type` | `"force_torque"` | — | 必須 |
-| `update_rate` | 測る周期 | Hz | 必須 |
-| `range` | 測れる範囲 R | N、N·m（軸の組） | 必須 |
-| `overload` | 過負荷の値 O | 数か範囲の % | 判定しない |
-| `delay` | 遅れ | s | 0 |
-| `lowpass_cutoff_hz` | ローパスの遮断周波数 | Hz | 使わない |
-| `nonlinearity` | 非線形 | %FS（軸の組か 1 つの値） | 0 |
-| `scale_error` | 目盛りの誤差 | %FS（1 つの値） | 0 |
-| `crosstalk` | 軸の干渉 | %（1 つの値） | 0 |
-| `bias` | ゼロ点のずれの上限 | 数か範囲の % | 0 |
-| `drift_per_hour` | 1 時間あたりのドリフト | 数か範囲の % | 0 |
-| `noise` | ノイズ（`definition`、`rate_hz`、`bandwidth_hz`、軸の組の値） | 4.3 | 0 |
-| `resolution` | 分解能 | 数 | 0 |
-| `tare_window` | ゼロ点合わせの平均の時間 | s | 0.1 |
+| `type` | `"force_torque"` | — | Required |
+| `update_rate` | Sample period | Hz | Required |
+| `range` | Measurable range R | N, N·m (axis groups) | Required |
+| `overload` | Overload value O | Number or % of range | No check |
+| `delay` | Delay | s | 0 |
+| `lowpass_cutoff_hz` | Low-pass cutoff frequency | Hz | Not used |
+| `nonlinearity` | Nonlinearity | %FS (axis groups or a single value) | 0 |
+| `scale_error` | Scale error | %FS (a single value) | 0 |
+| `crosstalk` | Crosstalk | % (a single value) | 0 |
+| `bias` | Upper limit of the bias | Number or % of range | 0 |
+| `drift_per_hour` | Drift per hour | Number or % of range | 0 |
+| `noise` | Noise (`definition`, `rate_hz`, `bandwidth_hz`, values per axis group) | 4.3 | 0 |
+| `resolution` | Resolution | Number | 0 |
+| `tare_window` | Averaging time for tare | s | 0.1 |
 
-- データシートに「正確さ（accuracy）」の 1 つの値しかないときは、`scale_error` にその値を書きます。軸の干渉は、データシートに値があるときだけ書きます。
-- 正しくない設定（知らないキー、必須のキーがない、負の値、範囲が 0 以下、知らない単位の印、物理の刻みの半分の周波数以上のローパス）は、作るときにエラーにします。
+- When the datasheet has only a single "accuracy" value, write that value in `scale_error`. Write crosstalk only when the datasheet gives a value.
+- Invalid configurations (unknown keys, missing required keys, negative values, a range of 0 or less, unknown unit suffixes, a low-pass at or above half the physics step frequency) cause an error at creation.
 
-例（OnRobot HEX-E QC のデータシートの値）：
+Example (values from the OnRobot HEX-E QC datasheet):
 
 ```json
 {
@@ -176,53 +176,53 @@
 }
 ```
 
-データシートにノイズを測ったときの出力の周期が書いていないときは、その機種の既定の出力の周期を `rate_hz` に書きます（上の例の 100 Hz は仮の値です）。
+When the datasheet does not state the output period at which the noise was measured, write the default output period of that model in `rate_hz` (the 100 Hz in the example above is a provisional value).
 
-## 6. 口の形
+## 6. Interface shape
 
-| 名前 | 中身 |
+| Name | Content |
 |---|---|
-| `ForceTorqueAdapterSetup` | 作るときにホストが渡すもの（共通の `SensorAdapterSetup`） |
-| `ForceTorqueTruth` | 物理の刻みごとの真値：時刻、力、モーメント、センサの姿勢、世界の重力 |
-| `ForceTorqueSample` | 1 刻みの出力：新しく測ったか、測った時刻、力、モーメント、印 |
-| `ForceTorqueAdapterCapabilities` | 持っている機能の宣言 |
-| `IForceTorqueSensorAdapter` | `step`、`tare`、`clear_tare`、`capabilities`。`reset`、`log_columns`、`log_values` は共通の `ISensorAdapter` から受け継ぐ |
+| `ForceTorqueAdapterSetup` | What the host passes at creation (the common `SensorAdapterSetup`) |
+| `ForceTorqueTruth` | Truth every physics step: time, force, moment, sensor orientation, world gravity |
+| `ForceTorqueSample` | Output of one step: whether a new value was measured, measurement time, force, moment, flags |
+| `ForceTorqueAdapterCapabilities` | Declaration of the supported features |
+| `IForceTorqueSensorAdapter` | `step`, `tare`, `clear_tare`, `capabilities`. `reset`, `log_columns`, and `log_values` are inherited from the common `ISensorAdapter` |
 
-ヘッダは `include/hakoniwa/sensor_adapter/force_torque_sensor_adapter.hpp` に置きます。外部センサのプラグイン（C の境目）への載せ方は、真値をホストが渡す点が距離と画像のセンサと違うので、別に決めます。
+The header is placed at `include/hakoniwa/sensor_adapter/force_torque_sensor_adapter.hpp`. How to carry it over the external sensor plugin (the C boundary) is defined separately, because it differs from range and image sensors in that the host passes the truth.
 
-## 7. 能力の表
+## 7. Capability table
 
-持っていない機能は `false` にし、持っているふりはしません。
+Features the adapter does not have are set to `false`. An adapter does not pretend to have them.
 
-| 項目 | 意味 |
+| Item | Meaning |
 |---|---|
-| `delay`、`lowpass` | 遅れ、ローパス |
-| `nonlinearity` | 非線形 |
-| `calibration_matrix` | 目盛りの誤差と軸の干渉（6×6） |
-| `bias`、`drift`、`noise`、`resolution` | ゼロ点のずれ、ドリフト、ノイズ、分解能 |
-| `range_clamp` | 頭打ち（印を立てる） |
-| `overload` | 過負荷の印 |
-| `overload_offset` | 過負荷のあとに残るゼロ点のずれ |
-| `temperature` | 温度による変化（ホストが温度を渡す） |
-| `hysteresis` | ヒステリシス |
-| `tare` | ゼロ点合わせ |
-| `deterministic_with_seed` | 同じ種・同じ入力・同じ呼び順で同じ値 |
-| `thread_safe_across_instances` | 別のインスタンスを別のスレッドから同時に呼べる |
+| `delay`, `lowpass` | Delay, low-pass |
+| `nonlinearity` | Nonlinearity |
+| `calibration_matrix` | Scale error and crosstalk (6×6) |
+| `bias`, `drift`, `noise`, `resolution` | Bias, drift, noise, resolution |
+| `range_clamp` | Saturation (sets the flag) |
+| `overload` | Overload flag |
+| `overload_offset` | Bias that remains after an overload |
+| `temperature` | Change with temperature (the host passes the temperature) |
+| `hysteresis` | Hysteresis |
+| `tare` | Tare |
+| `deterministic_with_seed` | Same values with the same seed, the same input, and the same call order |
+| `thread_safe_across_instances` | Different instances can be called at the same time from different threads |
 
-`overload_offset`、`temperature`、`hysteresis` は、式をまだ決めていません。持つ実装は、式を自分の資料に書きます。
+The formulas for `overload_offset`, `temperature`, and `hysteresis` are not defined here. An implementation that has them writes the formulas in its own documentation.
 
-使い分けの目安：
+Guide for choosing:
 
-| 段 | 能力 |
+| Level | Capabilities |
 |---|---|
-| 誤差なし | 何も持たない。物理の真値をそのまま返す |
-| 基本 | ノイズ、ゼロ点のずれ、ドリフト、分解能（Gazebo の誤差のモデルと同じ範囲） |
-| 実機並み | 基本に加えて、非線形、較正の行列、遅れとローパス、頭打ちと過負荷、ゼロ点合わせ |
+| No error | Nothing. Returns the physics truth as is |
+| Basic | Noise, bias, drift, resolution (the same scope as the Gazebo error model) |
+| Close to real devices | Basic, plus nonlinearity, calibration matrix, delay and low-pass, saturation and overload, tare |
 
-## 8. ホストの側でやること
+## 8. What the host does
 
-- 物理エンジンから真値を取り、センサの軸と基準点へ移します。MuJoCo なら、センサのための体（関節なしでつなぐ）を、手首と工具の間に置き、その体が親に伝える力を使います。
-- 物理エンジンの向きの決まりを、3.1 の向きに直します。
-- 工具の重さの補償を使うときは、センサの外で、工具の質量と重心から計算して引きます。
-- ゼロ点合わせを、利用者や制御器から呼べるようにします（サービスなど）。
-- 出力を、箱庭の PDU（`geometry_msgs/WrenchStamped` に当たる型）に載せます。
+- Get the truth from the physics engine and move it to the sensor axes and reference point. For MuJoCo, place a body for the sensor (connected without a joint) between the wrist and the tool, and use the force that this body transmits to its parent.
+- Convert the physics engine direction convention to the direction in 3.1.
+- When tool weight compensation is used, compute it outside the sensor from the tool mass and center of gravity, and subtract it.
+- Make tare callable from the user or the controller (for example as a service).
+- Put the output on a Hakoniwa PDU (a type corresponding to `geometry_msgs/WrenchStamped`).

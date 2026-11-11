@@ -1,32 +1,32 @@
-# 力覚センサ：評価の結果（2026-11-11）
+# Force-torque sensor: evaluation results (2026-11-11)
 
-6 軸の力覚センサを、[評価の軸](../drone/evaluation-axes.md) と同じ 6 つの軸で比べました。どちらも [力覚センサの口](../../design/force-torque-adapter.md) のアダプタとして包み、同じ真値の列を渡しています。
+We compared 6-axis force-torque sensors on the same six axes as [Evaluation axes](../drone/evaluation-axes.md). Both are wrapped as adapters of the [force-torque sensor interface](../../design/force-torque-adapter.md) and receive the same truth sequence.
 
-| 実装 | 版 |
+| Implementation | Version |
 |---|---|
-| 箱庭 | 箱庭の力覚センサのモデル（この口の設計の式を実装したもの。ソースは非公開） |
-| Gazebo | gz-sensors 10.2.0 の `ForceTorqueSensor`（hakoniwa-sensor-adapter-gazebo のアダプタ） |
+| Hakoniwa | Hakoniwa force-torque sensor model (an implementation of the equations in this interface's design; the source is not public) |
+| Gazebo | gz-sensors 10.2.0 `ForceTorqueSensor` (the hakoniwa-sensor-adapter-gazebo adapter) |
 
-Project AirSim には力覚センサがないので、比べていません。物理エンジンが持つ力覚センサ（MuJoCo の `force`・`torque` など）と、ROS 2 の部品（mujoco_ros2_control）は、軸 2 で機能の範囲だけを並べます。
+Project AirSim has no force-torque sensor, so it is not compared. The force-torque sensors of physics engines (MuJoCo `force` and `torque`, and so on) and the ROS 2 component (mujoco_ros2_control) are listed in axis 2 for feature coverage only.
 
-測った日：2026-11-11。機械：macOS（arm64）。物理の刻み 1 ms、測る周期 500 Hz。
+Date measured: 2026-11-11. Machine: macOS (arm64). Physics step 1 ms, sample period 500 Hz.
 
-## まとめ
+## Summary
 
-| 軸 | 箱庭 | Gazebo |
+| Axis | Hakoniwa | Gazebo |
 |---|---|---|
-| 0. ノイズなしの一致 | 基準 | 一致（差は 1.8e-15 以下、測る時刻は 5,000 回すべて一致） |
-| 1. 確からしさ | ノイズ、量子化、ゼロ点のずれ、ドリフトが設定どおり | ノイズと量子化は設定どおり。ゼロ点のずれは ± 設定値の 2 つの値だけ。ゆっくり変わるずれの定常の σ は、設定の √(τ/2) 倍 |
-| 2. 表せる範囲（15 項目） | 15 | 4 |
-| 3. 再現性（5 場面） | 5 場面すべてで決まったとおり | ほかのセンサ・同じ種の 2 台・リセットで並びが変わる |
-| 4. 速さ（1 刻みの平均） | 0.05 µs（誤差なし）、0.10 µs（ノイズあり） | 0.11 µs、0.22 µs |
-| 5. 入れやすさ | 追加の依存なし（設定を読む JSON のヘッダだけ） | gz-sensors とその依存（ドローンのセンサと同じ） |
+| 0. No-noise agreement | Reference | Agrees (difference at most 1.8e-15; sample times agree in all 5,000 samples) |
+| 1. Accuracy | Noise, quantization, bias and drift as configured | Noise and quantization as configured. Bias takes only the two values ± the setting. Steady-state σ of the slowly varying bias is √(τ/2) times the setting |
+| 2. Coverage (15 items) | 15 | 4 |
+| 3. Repeatability (5 cases) | As specified in all 5 cases | Sequence changes with other sensors, two units with the same seed, and reset |
+| 4. Speed (mean per physics step) | 0.05 µs (no errors), 0.10 µs (with noise) | 0.11 µs, 0.22 µs |
+| 5. Adoption effort | No extra dependencies (only a JSON header to read the configuration) | gz-sensors and its dependencies (same as for the drone sensors) |
 
-## 0. ノイズなしの一致
+## 0. No-noise agreement
 
-誤差を全部切り、6 軸それぞれに違う振幅・周波数の正弦波を足した真値を 10 秒渡しました。
+With every error turned off, we passed 10 seconds of truth with sinusoids of different amplitude and frequency added to each of the 6 axes.
 
-| 軸 | 箱庭と Gazebo の差の最大 | 箱庭と真値の差の最大 |
+| Axis | Max difference, Hakoniwa vs Gazebo | Max difference, Hakoniwa vs truth |
 |---|---|---|
 | Fx | 4.4e-16 | 4.4e-16 |
 | Fy | 4.4e-16 | 4.4e-16 |
@@ -35,16 +35,16 @@ Project AirSim には力覚センサがないので、比べていません。�
 | Ty | 2.2e-16 | 2.2e-16 |
 | Tz | 1.4e-17 | 1.4e-17 |
 
-- 力の向き（工具の側がロボットの側に及ぼす力）とモーメントの軸がそろっていることを、この一致で確かめました。Gazebo のアダプタは、gz-sensors の「親が子に及ぼす力」を既定の `child_to_parent` で反転して出すので、口と同じ向きになります。
-- 差は浮動小数の丸めの大きさです。
+- This agreement confirms that the force direction (the force the tool side exerts on the robot side) and the moment axes are aligned. The Gazebo adapter outputs gz-sensors' "force the parent exerts on the child" reversed with the default `child_to_parent`, so it has the same direction as the interface.
+- The differences are of the size of floating-point rounding.
 
-## 1. 確からしさ
+## 1. Accuracy
 
-同じ意味になるように設定し、静止した真値（0）で統計を取りました。
+We configured both to have the same meaning and took statistics with stationary truth (0).
 
-### ノイズ（20,000 サンプル）
+### Noise (20,000 samples)
 
-| 軸 | 設定の σ | 箱庭 | Gazebo |
+| Axis | Configured σ | Hakoniwa | Gazebo |
 |---|---|---|---|
 | Fx | 0.1 N | 0.0997 | 0.0991 |
 | Fy | 0.1 N | 0.1003 | 0.1003 |
@@ -53,88 +53,88 @@ Project AirSim には力覚センサがないので、比べていません。�
 | Ty | 0.01 N·m | 0.00998 | 0.01001 |
 | Tz | 0.02 N·m | 0.02002 | 0.01991 |
 
-箱庭は、データシートの 1σ をその出力の周期のまま書き（`rate_hz` 500）、帯域の換算が 1 倍になる設定で比べました。
+For Hakoniwa, we wrote the datasheet 1σ at its output period (`rate_hz` 500), a setting where the bandwidth conversion factor is 1, and compared.
 
-### 量子化（10,000 サンプル）
+### Quantization (10,000 samples)
 
-刻み 0.05 N・0.005 N·m の倍数でない値の数は、6 軸とも、箱庭・Gazebo ともに 0 でした。
+The number of values that were not multiples of the step 0.05 N or 0.005 N·m was 0 on all 6 axes, for both Hakoniwa and Gazebo.
 
-### ゼロ点のずれ（種 1〜40 の 40 台、Fx、設定 0.5 N）
+### Bias (40 units with seeds 1 to 40, Fx, setting 0.5 N)
 
-| 実装 | 最小 | 最大 | 負の台数 | 違う値の数 |
+| Implementation | Min | Max | Negative units | Distinct values |
 |---|---|---|---|---|
-| 箱庭 | −0.442 | 0.449 | 20 | 40 |
+| Hakoniwa | −0.442 | 0.449 | 20 | 40 |
 | Gazebo | −0.5 | 0.5 | 21 | 2 |
 
-- 箱庭は、±0.5 N の範囲から 1 台ずつ一様に引きます（データシートの「以内」の値として読む）。
-- Gazebo は、設定の値に、50 % の確率で符号を付けるだけです（`bias_stddev` を 0 にしたとき）。台ごとの散らばりは、`bias_stddev` で別に書きます。
+- Hakoniwa draws one value per unit uniformly from the range ±0.5 N (reading the datasheet value as "within").
+- Gazebo only attaches a sign to the configured value with 50 % probability (when `bias_stddev` is 0). The spread between units is written separately with `bias_stddev`.
 
-### ドリフト（それぞれのモデルに対して）
+### Drift (each against its own model)
 
-| 実装 | モデル | 設定 | 測った値 | 期待 |
+| Implementation | Model | Setting | Measured | Expected |
 |---|---|---|---|---|
-| 箱庭 | ランダムウォーク | 1 時間あたり 60 N | 1 回の増分の σ 0.0446 N | 60 × √(0.002 / 3600) = 0.0447 N |
-| Gazebo | 1 次の Gauss-Markov | `dynamic_bias_stddev` 1 N、`dynamic_bias_correlation_time` 10 s | 200 台の定常の σ 2.226 N | gz-sensors の式で σ_b·√(τ/2) = 2.236 N |
+| Hakoniwa | Random walk | 60 N per hour | σ of one increment 0.0446 N | 60 × √(0.002 / 3600) = 0.0447 N |
+| Gazebo | First-order Gauss-Markov | `dynamic_bias_stddev` 1 N, `dynamic_bias_correlation_time` 10 s | Steady-state σ over 200 units 2.226 N | σ_b·√(τ/2) = 2.236 N by the gz-sensors equation |
 
-Gazebo の `dynamic_bias_stddev` は、定常の σ ではありません。gz-sensors の離散化の式（`sigma_b_d = sqrt(−σ_b²·τ/2·expm1(−2·dt/τ))`）から、定常の σ は σ_b·√(τ/2) になります。定常の σ を σ にしたいときは、σ / √(τ/2) を書きます。
+Gazebo's `dynamic_bias_stddev` is not the steady-state σ. From the gz-sensors discretization (`sigma_b_d = sqrt(−σ_b²·τ/2·expm1(−2·dt/τ))`), the steady-state σ is σ_b·√(τ/2). To get a steady-state σ of σ, write σ / √(τ/2).
 
-## 2. 表せる範囲
+## 2. Coverage
 
-| # | 項目 | 箱庭 | Gazebo | MuJoCo（`force`・`torque`） | mujoco_ros2_control |
+| # | Item | Hakoniwa | Gazebo | MuJoCo (`force`, `torque`) | mujoco_ros2_control |
 |---|---|---|---|---|---|
-| 1 | 向きとモーメントの基準点を決めている | ○（工具がロボットに及ぼす力、センサの原点まわり） | △（SDFormat の説明と gz-sim の計算が違う） | ○（子から親の向き、印の原点） | △（MuJoCo の値を反転。資料に書いていない） |
-| 2 | 軸ごとのノイズ | ○ | ○ | ×（`noise` は書けるが足さない） | ○（σ だけ） |
-| 3 | データシートのノイズの定義と帯域の換算 | ○ | × | × | × |
-| 4 | ゼロ点のずれ（台ごと） | ○ | △（± の 2 値。散らばりは別に書く） | × | × |
-| 5 | ドリフト | ○（ランダムウォーク） | ○（Gauss-Markov） | × | × |
-| 6 | 分解能 | ○ | ○ | × | × |
-| 7 | 非線形 | ○ | × | × | × |
-| 8 | 目盛りの誤差・軸の干渉（6×6） | ○ | × | × | × |
-| 9 | 遅れ | ○ | × | ○（`delay`） | × |
-| 10 | ローパス | ○ | × | △（履歴の補間） | × |
-| 11 | 頭打ちと印 | ○ | × | △（`cutoff` で切る。印はない） | △（MuJoCo と同じ） |
-| 12 | 過負荷の印 | ○ | × | × | × |
-| 13 | ゼロ点合わせ | ○ | × | × | × |
-| 14 | 種で決まる、センサごとの乱数の列 | ○ | ×（プロセスで 1 本） | — | ×（種を指定できない） |
-| 15 | 物理の真値から独立に使える（ほかの物理エンジンにも） | ○ | ○ | × | × |
+| 1 | Direction and moment reference point are defined | ○ (force the tool exerts on the robot, about the sensor origin) | △ (the SDFormat description and the gz-sim computation differ) | ○ (child to parent, about the site origin) | △ (reverses the MuJoCo value; not documented) |
+| 2 | Per-axis noise | ○ | ○ | × (`noise` can be written but is not added) | ○ (σ only) |
+| 3 | Datasheet noise definition and bandwidth conversion | ○ | × | × | × |
+| 4 | Bias (per unit) | ○ | △ (two values ±; spread written separately) | × | × |
+| 5 | Drift | ○ (random walk) | ○ (Gauss-Markov) | × | × |
+| 6 | Resolution | ○ | ○ | × | × |
+| 7 | Nonlinearity | ○ | × | × | × |
+| 8 | Scale error, crosstalk (6×6) | ○ | × | × | × |
+| 9 | Delay | ○ | × | ○ (`delay`) | × |
+| 10 | Low-pass | ○ | × | △ (history interpolation) | × |
+| 11 | Saturation and flag | ○ | × | △ (clipped by `cutoff`; no flag) | △ (same as MuJoCo) |
+| 12 | Overload flag | ○ | × | × | × |
+| 13 | Tare | ○ | × | × | × |
+| 14 | Per-sensor random stream determined by the seed | ○ | × (one per process) | — | × (seed cannot be specified) |
+| 15 | Usable independently of the physics truth (also with other physics engines) | ○ | ○ | × | × |
 
-MuJoCo と mujoco_ros2_control の列は、資料とソースから読んだものです（mujoco_ros2_control は main の `hardware_interface.rst` と `MujocoSystemInterface`）。動かして測ってはいません。
+The MuJoCo and mujoco_ros2_control columns were read from documentation and source (for mujoco_ros2_control, `hardware_interface.rst` and `MujocoSystemInterface` on main). They were not run and measured.
 
-## 3. 再現性
+## 3. Repeatability
 
-ノイズの設定、種 5、2,000 サンプル。
+Noise setting, seed 5, 2,000 samples.
 
-| 場面 | 箱庭 | Gazebo |
+| Case | Hakoniwa | Gazebo |
 |---|---|---|
-| 同じ種で作り直すと同じ並び | はい | はい |
-| 間に別のセンサを動かしても同じ並び | はい | いいえ |
-| 同じ種の 2 台を交互に動かすと同じ並び | はい | いいえ |
-| リセットのあと、作った直後と同じ並び | はい | いいえ |
-| 違う種で違う並び | はい | はい |
+| Recreated with the same seed gives the same sequence | Yes | Yes |
+| Same sequence even when another sensor runs in between | Yes | No |
+| Two units with the same seed run alternately give the same sequence | Yes | No |
+| After reset, the same sequence as right after creation | Yes | No |
+| Different seed gives a different sequence | Yes | Yes |
 
-Gazebo は乱数の列がプロセスに 1 本なので、ほかのセンサの動きで並びが変わります。リセットで種を入れ直さないのは、ほかのセンサの並びまでやり直しにしないためです（アダプタの決まり）。
+Gazebo has one random stream per process, so the sequence changes with the activity of other sensors. The seed is not set again at reset so that the sequences of other sensors are not restarted too (an adapter rule).
 
-## 4. 速さ
+## 4. Speed
 
-60 秒（60,000 刻み）を 5 回動かした中央値。
+Median of 5 runs of 60 seconds (60,000 physics steps).
 
-| 設定 | 箱庭 | Gazebo |
+| Setting | Hakoniwa | Gazebo |
 |---|---|---|
-| 誤差なし | 0.048 µs | 0.107 µs |
-| ノイズあり | 0.096 µs | 0.220 µs |
+| No errors | 0.048 µs | 0.107 µs |
+| With noise | 0.096 µs | 0.220 µs |
 
-どちらも 1 ms の刻みの 0.03 % 未満です。
+Both are below 0.03 % of the 1 ms physics step.
 
-## 5. 入れやすさ
+## 5. Adoption effort
 
-| 項目 | 箱庭 | Gazebo |
+| Item | Hakoniwa | Gazebo |
 |---|---|---|
-| 依存 | 設定を読む nlohmann/json（ヘッダだけ） | gz-sensors と、その依存（gz-math、gz-msgs、gz-transport、sdformat、protobuf など。[ドローンのセンサ](../drone/axis5-adoption.md) と同じ） |
-| 設定 | JSON。データシートの値を単位つきで写す | SDFormat の `<force_torque>` |
-| 通信 | なし | gz-transport の配信の口ができる（スレッドが立つ） |
+| Dependencies | nlohmann/json to read the configuration (header only) | gz-sensors and its dependencies (gz-math, gz-msgs, gz-transport, sdformat, protobuf, and others; same as for the [drone sensors](../drone/axis5-adoption.md)) |
+| Configuration | JSON. Datasheet values are copied with units | SDFormat `<force_torque>` |
+| Transport | None | A gz-transport publisher is created (a thread starts) |
 
-## 測り方
+## Method
 
-- 比べるプログラムは、2 つのアダプタをこの口だけで呼びます。
-- Gazebo のアダプタは公開しているので、その列は誰でも作り直せます。
-- 比べるプログラムと箱庭のアダプタは非公開です。
+- The comparison program calls the two adapters only through this interface.
+- The Gazebo adapter is public, so anyone can reproduce its column.
+- The comparison program and the Hakoniwa adapter are not public.

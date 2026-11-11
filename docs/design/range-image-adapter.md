@@ -1,119 +1,119 @@
-# 距離と画像のセンサアダプタの口（設計）
+# Range and image sensor adapter interfaces (design)
 
-距離計、LiDAR（2D・3D）、深度カメラ、RGB カメラの口を決めます。
-下調べ（Gazebo・Project AirSim・箱庭の比較）は [range-image-survey.md](range-image-survey.md) です。5 つのセンサの口（[imu-adapter.md](imu-adapter.md)、[mag-baro-gps-adapter.md](mag-baro-gps-adapter.md)）と同じ考え方で作ります。
+This document defines the interfaces for rangefinders, LiDAR (2D and 3D), depth cameras, and RGB cameras.
+The survey (comparison of Gazebo, Project AirSim, and Hakoniwa) is [range-image-survey.md](range-image-survey.md). The interfaces follow the same approach as the 5 sensor interfaces ([imu-adapter.md](imu-adapter.md), [mag-baro-gps-adapter.md](mag-baro-gps-adapter.md)).
 
-## 1. 目的と範囲
+## 1. Purpose and scope
 
-- 用途ごとに口を分けます。
+- The interfaces are split by use.
 
-  | 口 | 用途（ドローン） | 似せる ROS の型 |
+  | Interface | Use (drone) | ROS type it resembles |
   |---|---|---|
-  | `IRangefinderSensorAdapter` | 地面からの高さ、着陸、地形に沿った飛行、近くの障害物 | `sensor_msgs/Range` |
-  | `ILidarSensorAdapter` | 2D：水平の障害物、壁沿いの飛行。3D：障害物を避ける、地図を作る | `sensor_msgs/LaserScan`、`sensor_msgs/PointCloud2` |
-  | `IDepthCameraSensorAdapter` | 前の障害物、近い距離の形 | `sensor_msgs/Image`（32FC1）、`sensor_msgs/CameraInfo` |
-  | `IRgbCameraSensorAdapter` | 見る、物を見つける、マーカーを見て着陸する | `sensor_msgs/Image`（rgb8）、`sensor_msgs/CameraInfo` |
+  | `IRangefinderSensorAdapter` | Height above ground, landing, terrain following, nearby obstacles | `sensor_msgs/Range` |
+  | `ILidarSensorAdapter` | 2D: horizontal obstacles, wall following. 3D: obstacle avoidance, mapping | `sensor_msgs/LaserScan`, `sensor_msgs/PointCloud2` |
+  | `IDepthCameraSensorAdapter` | Obstacles ahead, shapes at short range | `sensor_msgs/Image` (32FC1), `sensor_msgs/CameraInfo` |
+  | `IRgbCameraSensorAdapter` | Viewing, object detection, landing on a marker | `sensor_msgs/Image` (rgb8), `sensor_msgs/CameraInfo` |
 
-- 2D と 3D の LiDAR は、同じ口です。縦の段が 1 つなら 2D です。
-- 口は ROS に依存しません。データ型は ROS の型に似せ、フィールドの名前と意味をそろえます。ROS や箱庭の PDU への変換は、口の外（ホスト）で行います。
-- 単位はメートル、角度はラジアンです。
+- 2D and 3D LiDAR use the same interface. With one vertical layer, it is 2D.
+- The interfaces do not depend on ROS. The data types resemble ROS types, with matching field names and meanings. Conversion to ROS or Hakoniwa PDUs is done outside the interface (by the host).
+- Units are meters, and angles are radians.
 
-## 2. ホストとアダプタの受け持ち
+## 2. Host and adapter responsibilities
 
-5 つのセンサとの違いは、**真値が「世界そのもの」**であることです。距離も画像も、世界にある物で決まります。そこで、世界を測る部分（レイを飛ばす、描く）はホストが受け持ち、アダプタはそれを呼び出します。
+The difference from the 5 sensors is that **the truth is "the world itself"**. Both distances and images are determined by the objects in the world. So the host owns the part that measures the world (casting rays, rendering), and the adapter calls it.
 
 ```text
-ホスト：センサの姿勢（物理） ──────────────┐
-ホスト：世界を測る部分（レイ・描画） ◀────┐ │
-                                       │ ▼
-アダプタ：測る周期・走査の並び → レイや描画を頼む → 範囲・ノイズ・分解能・当たらないときの扱い → 出力
-                                                                                           │
-ホスト：                                                                                    ▼
-        ROS・PDU への変換 → 自動操縦・ログ・表示
+Host: sensor pose (physics) ─────────────────┐
+Host: world measurement (rays, rendering) ◀┐ │
+                                           │ ▼
+Adapter: sample period, scan pattern → request rays or rendering → range, noise, resolution, no-hit handling → output
+                                                                                                                │
+Host:                                                                                                           ▼
+        conversion to ROS and PDUs → autopilot, log, display
 ```
 
-| 受け持ち | 中身 | 理由 |
+| Owner | Content | Reason |
 |---|---|---|
-| ホスト | センサの姿勢（取り付けの姿勢を当てはめた後）、世界にレイを飛ばす、世界を描く、自分の機体を当たりから除く | 物理の世界を持っているのはホスト。アダプタは物理エンジンを知らずに済む |
-| アダプタ | 測る周期、走査の並び（角度、段、回転）、範囲、ノイズ、分解能、当たらないときの扱い、レンズ、カメラの内部の値 | センサの性質そのもの。データシートの値で書くところ |
-| ホスト | 出力を ROS や PDU に変える | 口の外の話 |
+| Host | Sensor pose (after the mounting pose is applied), casting rays into the world, rendering the world, excluding its own vehicle from hits | The host owns the physics world. The adapter does not need to know the physics engine |
+| Adapter | Sample period, scan pattern (angles, layers, rotation), range, noise, resolution, no-hit handling, lens, camera intrinsics | These are the sensor properties themselves. They are written with datasheet values |
+| Host | Converting the output to ROS or PDUs | Outside the interface |
 
-## 3. 決めたこと（原則）
+## 3. Decisions (principles)
 
-### 3.1 世界を測る部分は、ホストが渡す
+### 3.1 The host passes the part that measures the world
 
-ホストは、作るときに「世界を測る部分」をアダプタへ渡します。
+At creation, the host passes the "part that measures the world" to the adapter.
 
-- **`IRayCaster`**（レイを飛ばす）：センサの軸で書いたレイの束（始点と向き）を受け取り、今の刻みのセンサの姿勢から世界へ飛ばします。レイごとに、当たったか、距離、当たった物の番号、当たった面の向き（センサの軸）を返します。
-- **`IImageRenderer`**（描く）：カメラの内部の値（画像の大きさ、視野、near・far）を受け取り、今の刻みのセンサの姿勢から、RGB または深度の画像を描いて返します。
+- **`IRayCaster`** (casts rays): receives a batch of rays written in sensor axes (origins and directions), and casts them into the world from the sensor pose at the current step. For each ray, it returns whether it hit, the distance, the index of the hit object, and the normal of the hit surface (in sensor axes).
+- **`IImageRenderer`** (renders): receives the camera intrinsics (image size, field of view, near and far), and renders and returns an RGB or depth image from the sensor pose at the current step.
 
-箱庭ドローン PRO は、レイを MuJoCo の `mj_multiRay` で、描画を MuJoCo の描画で実装します。物理の当たり判定の世界を測ります（見た目は安く、当たり判定は実物の大きさで作る、という箱庭の決まりと合います）。
+Hakoniwa Drone PRO implements rays with MuJoCo `mj_multiRay` and rendering with MuJoCo rendering. It measures the physics collision world (this matches the Hakoniwa rule: cheap visuals, collision shapes at real-object size).
 
-アダプタは、必要なほうを能力の表（`requires_ray_caster`、`requires_renderer`）で宣言します。ホストが持っていなければ、作るときに断ります。
+The adapter declares which one it needs in the capability table (`requires_ray_caster`, `requires_renderer`). If the host does not have it, creation is refused.
 
-### 3.2 真値：センサの姿勢と時刻
+### 3.2 Truth: sensor pose and time
 
-| 渡すもの | 座標 | 単位 |
+| Value | Frame | Unit |
 |---|---|---|
-| 時刻 | — | ns |
-| センサの位置 | 世界 NWU | m |
-| センサの姿勢（世界 NWU からセンサの軸への回転） | 四元数 | — |
+| Time | — | ns |
+| Sensor position | World NWU | m |
+| Sensor orientation (rotation from world NWU to sensor axes) | Quaternion | — |
 
-- センサの軸は FLU（x 前、y 左、z 上）です。距離のセンサは x の向きが正面です。
-- 姿勢は、出力に付けて返すためと、アダプタが点群を世界の座標でも出すために渡します。レイを飛ばすのはホストなので、アダプタが姿勢を使って計算する必要はありません。
+- The sensor axes are FLU (x forward, y left, z up). For range sensors, the x direction is the front.
+- The pose is passed so that it can be attached to the output, and so that the adapter can also output point clouds in world coordinates. The host casts the rays, so the adapter does not need to use the pose for computation.
 
-### 3.3 時刻と走査（点ごとの時刻）
+### 3.3 Time and scanning (per-point time)
 
-- 5 つのセンサと同じく、物理の刻みごとに `step` を呼びます（`sim_time_ns` = 0, dt, 2dt, …）。
-- **回転しながら測る LiDAR は、その刻みに測るぶんのレイだけを飛ばします。** たとえば 10 Hz で回る LiDAR を 1 ms の刻みで動かすと、1 刻みに 1 周の 1/100 を測ります。1 周がそろったところで出力を `updated = true` にします。こうすると、機体が動いている間の歪みが自然に出ます。Gazebo にも Project AirSim にもない性質です。
-- 点ごとに、走査の始まりからの時刻の差（`time_offset`）を持ちます。
-- 一瞬で全部を測る形（`scan_mode = instant`）も選べます。Gazebo・Project AirSim と同じ測り方で、比べるときや軽くしたいときに使います。
-- カメラは、撮影時刻の刻みで 1 枚を描きます（露出の時間による歪みは扱いません）。
+- As with the 5 sensors, `step` is called every physics step (`sim_time_ns` = 0, dt, 2dt, ...).
+- **A LiDAR that measures while rotating casts only the rays it measures in that step.** For example, a LiDAR rotating at 10 Hz run at a 1 ms step measures 1/100 of a revolution per step. When a full revolution is complete, the output is set to `updated = true`. This way, distortion while the vehicle moves appears naturally. Neither Gazebo nor Project AirSim has this property.
+- Each point carries its time offset from the start of the scan (`time_offset`).
+- A mode that measures everything in one instant (`scan_mode = instant`) can also be selected. It measures in the same way as Gazebo and Project AirSim, and is used for comparisons or to reduce cost.
+- A camera renders one image at the step of the capture time (distortion from exposure time is not handled).
 
-### 3.4 当たらないとき・範囲の外
+### 3.4 No hit and out of range
 
-- 既定は ROS の REP 117 の決まりです。遠すぎる・当たらないときは +inf、最短より近いときは −inf です。
-- 設定で「範囲の最大の値を入れる」形も選べます。
-- ノイズは、範囲の中の値にだけ足し、足した後に範囲へ切り詰めます。切り詰めたときは `kSensorFlagSaturated` を立てます。
+- The default is the ROS REP 117 rule. Too far or no hit gives +inf. Closer than the minimum gives −inf.
+- A mode that "inserts the maximum of the range" can also be selected in the configuration.
+- Noise is added only to values within the range, and the result is then clamped to the range. When clamped, `kSensorFlagSaturated` is set.
 
-### 3.5 ノイズ・分解能
+### 3.5 Noise and resolution
 
-- 距離のノイズは、距離の範囲ごとに書けます。書き方は 2 通りです。
-  - σ（m）
-  - 距離の %（データシートの「測った距離の 3 %」など）
-- 分解能（量子化）は、実際に効かせます。Gazebo の `range/resolution` はどこにも効きませんが、この口では効きます。
-- 深度カメラのノイズも、同じ書き方で距離ごとに書けます。
-- RGB のノイズは、画素ごとのガウス（平均と σ）から始めます。
+- Distance noise can be written per distance range. There are two ways to write it:
+  - σ (m)
+  - % of distance (such as the datasheet "3 % of the measured distance")
+- Resolution (quantization) is actually applied. Gazebo `range/resolution` has no effect anywhere, but in this interface it does.
+- Depth camera noise can also be written per distance, in the same way.
+- RGB noise starts with per-pixel Gaussian noise (mean and σ).
 
-### 3.6 深度の意味とカメラの軸
+### 3.6 Meaning of depth and camera axes
 
-- 深度カメラは、次のどちらを出すかを設定ではっきり決めます。
-  - `planar`：カメラの面からの距離（z の深さ）
-  - `perspective`：カメラの点からレイに沿った距離
-- 画像の軸は、カメラの光学の軸（x 右、y 下、z 前）です。行は上から下、列は左から右に並べます。センサの軸（FLU）から光学の軸への回転は口で決めた固定のもので、`CameraInfo` と一緒に出します。
-- `CameraInfo` は必ず出します。中身は K（3×3）、歪みのモデルと係数、R、P（3×4）、画像の大きさです。
+- The depth camera configuration explicitly selects which one it outputs:
+  - `planar`: distance from the camera plane (z depth)
+  - `perspective`: distance along the ray from the camera point
+- The image axes are the camera optical frame (x right, y down, z forward). Rows go from top to bottom, and columns from left to right. The rotation from the sensor axes (FLU) to the optical frame is fixed by the interface, and is output together with `CameraInfo`.
+- `CameraInfo` is always output. It contains K (3×3), the distortion model and coefficients, R, P (3×4), and the image size.
 
-### 3.7 設定
+### 3.7 Configuration
 
-- 5 つのセンサと同じく、アダプタは自分の形式の設定だけを読みます。ホストは自分の設定を渡しません。
-- 箱庭のアダプタの設定は、SDF 風の JSON にします。構造は Gazebo の `scan`・`range`・`noise` に寄せ、データシートの距離ごとの精度（hakoniwa-mujoco-robots の形）も書けるようにします。
-- AirSim の名前との対応は、次のとおりです（設定を読む道具で書き換えます）。
+- As with the 5 sensors, the adapter reads only configuration in its own format. The host does not pass its own configuration.
+- The Hakoniwa adapter configuration is SDF-like JSON. Its structure follows the Gazebo `scan`, `range`, and `noise`, and datasheet accuracy per distance (the hakoniwa-mujoco-robots form) can also be written.
+- The mapping to the AirSim names is as follows (the tool that reads the configuration converts them).
 
-  | AirSim | 箱庭 |
+  | AirSim | Hakoniwa |
   |---|---|
   | `number-of-channels` | `scan.vertical.samples` |
-  | `points-per-second` ÷ `horizontal-rotation-frequency` ÷ チャンネル数 | `scan.horizontal.samples` |
+  | `points-per-second` ÷ `horizontal-rotation-frequency` ÷ channel count | `scan.horizontal.samples` |
   | `horizontal-rotation-frequency` | `update_rate` |
-  | `horizontal-fov-start-deg`・`horizontal-fov-end-deg` | `scan.horizontal.min_angle`・`max_angle`（ラジアン） |
-  | `vertical-fov-lower-deg`・`vertical-fov-upper-deg` | `scan.vertical.min_angle`・`max_angle`（ラジアン） |
+  | `horizontal-fov-start-deg`, `horizontal-fov-end-deg` | `scan.horizontal.min_angle`, `max_angle` (radians) |
+  | `vertical-fov-lower-deg`, `vertical-fov-upper-deg` | `scan.vertical.min_angle`, `max_angle` (radians) |
   | `range` | `range.max` |
-  | 距離計の `min-distance`・`max-distance` | `range.min`・`range.max` |
-  | カメラの `width`・`height`・`fov-degrees` | `image.width`・`image.height`・`horizontal_fov`（ラジアン） |
-  | `DepthPlanar`・`DepthPerspective` | `depth.type = planar`・`perspective` |
+  | Rangefinder `min-distance`, `max-distance` | `range.min`, `range.max` |
+  | Camera `width`, `height`, `fov-degrees` | `image.width`, `image.height`, `horizontal_fov` (radians) |
+  | `DepthPlanar`, `DepthPerspective` | `depth.type = planar`, `perspective` |
 
-- データシートの値（ミリメートル、%）は、設定を読むところでメートルに直します。
+- Datasheet values (millimeters, %) are converted to meters where the configuration is read.
 
-設定の例（3D LiDAR）：
+Configuration example (3D LiDAR):
 
 ```json
 {
@@ -133,46 +133,46 @@
 }
 ```
 
-### 3.8 乱数とリセット
+### 3.8 Random numbers and reset
 
-- 5 つのセンサと同じ決まりです。種、機体の名前・番号、センサの名前から、乱数の列を作ります。
-- `reset` で、走査の途中の状態、たまった点、乱数の列を、作ったときの状態に戻します。
+- Same rules as the 5 sensors. Random streams are created from the seed, the vehicle name and index, and the sensor name.
+- `reset` returns the in-progress scan state, the accumulated points, and the random streams to their state at creation.
 
-### 3.9 出力の大きさ
+### 3.9 Output size
 
-- 点群と画像は大きいので、アダプタが持つバッファへの参照で返します。参照は、次の `step` まで有効です。ホストはその間に写します。
-- 大きさの上限は、作るときに決まります（走査の並び、画像の大きさから）。`step` の途中で増えることはありません。
+- Point clouds and images are large, so they are returned as references to buffers owned by the adapter. A reference is valid until the next `step`. The host copies the data in that time.
+- The maximum size is fixed at creation (from the scan pattern and the image size). It does not grow during `step`.
 
-## 4. 口の形
+## 4. Interface shape
 
-ヘッダは次の 4 つです（`include/hakoniwa/sensor_adapter/`）。
+There are 4 headers (`include/hakoniwa/sensor_adapter/`).
 
-| ヘッダ | 中身 |
+| Header | Content |
 |---|---|
-| `range_image_sensor_adapter.hpp` | 共通：`Ray`・`RayHit`・`IRayCaster`、`RenderRequest`・`RenderResult`・`IImageRenderer`、`RangeImageAdapterSetup`、`SensorPoseTruth`、`CameraInfo` |
-| `rangefinder_sensor_adapter.hpp` | 距離計：`RangeSample`、能力の表、`IRangefinderSensorAdapter` |
-| `lidar_sensor_adapter.hpp` | LiDAR：`LidarPoint`、`LidarScan`、能力の表、`ILidarSensorAdapter` |
-| `camera_sensor_adapter.hpp` | 深度と RGB：`DepthImage`、`RgbImage`、能力の表、`IDepthCameraSensorAdapter`、`IRgbCameraSensorAdapter` |
+| `range_image_sensor_adapter.hpp` | Common: `Ray`, `RayHit`, `IRayCaster`, `RenderRequest`, `RenderResult`, `IImageRenderer`, `RangeImageAdapterSetup`, `SensorPoseTruth`, `CameraInfo` |
+| `rangefinder_sensor_adapter.hpp` | Rangefinder: `RangeSample`, capability table, `IRangefinderSensorAdapter` |
+| `lidar_sensor_adapter.hpp` | LiDAR: `LidarPoint`, `LidarScan`, capability table, `ILidarSensorAdapter` |
+| `camera_sensor_adapter.hpp` | Depth and RGB: `DepthImage`, `RgbImage`, capability table, `IDepthCameraSensorAdapter`, `IRgbCameraSensorAdapter` |
 
-センサの軸から光学の軸への回転は、`v_optical = R(q) v_sensor` で q = (0.5, 0.5, −0.5, 0.5) です（前 → +z、左 → −x、上 → −y）。
+The rotation from the sensor axes to the optical frame is `v_optical = R(q) v_sensor` with q = (0.5, 0.5, −0.5, 0.5) (forward → +z, left → −x, up → −y).
 
-### 4.1 世界を測る部分（ホストが実装する）
+### 4.1 The part that measures the world (implemented by the host)
 
 ```cpp
 struct Ray {
-    Vector3 origin;     // センサの軸 [m]（ふつうは 0。円錐やレーザーの間隔のぶんずらす）
-    Vector3 direction;  // センサの軸、単位ベクトル
+    Vector3 origin;     // sensor axes [m] (usually 0; offset for a cone or laser spacing)
+    Vector3 direction;  // sensor axes, unit vector
 };
 struct RayHit {
     bool hit{false};
     double distance{0.0};   // [m]
     std::int32_t object_id{-1};
-    Vector3 normal{};       // 当たった面の向き、センサの軸
+    Vector3 normal{};       // normal of the hit surface, sensor axes
 };
 class IRayCaster {
 public:
     virtual ~IRayCaster() = default;
-    // 今の刻みのセンサの姿勢から、rays を max_distance まで飛ばす。自分の機体には当たらない。
+    // Cast rays up to max_distance from the sensor pose at the current step. Rays do not hit the own vehicle.
     virtual bool cast(const Ray* rays, std::size_t count, double max_distance, RayHit* hits,
                       std::string& error) = 0;
 };
@@ -182,30 +182,30 @@ struct RenderRequest {
     double horizontal_fov{0.0};  // [rad]
     double near_clip{0.0}, far_clip{0.0};  // [m]
     bool rgb{false};
-    bool depth{false};           // planar（カメラの面からの距離）[m]
+    bool depth{false};           // planar (distance from the camera plane) [m]
 };
 struct RenderResult {
-    const std::uint8_t* rgb{nullptr};  // rgb8、行は上から下
-    const float* depth{nullptr};        // [m]、範囲の外は +inf
+    const std::uint8_t* rgb{nullptr};  // rgb8, rows from top to bottom
+    const float* depth{nullptr};        // [m], +inf out of range
 };
 class IImageRenderer {
 public:
     virtual ~IImageRenderer() = default;
-    // 今の刻みのセンサの姿勢から描く。結果は次の render まで有効。
+    // Render from the sensor pose at the current step. The result is valid until the next render.
     virtual bool render(const RenderRequest& request, RenderResult& result, std::string& error) = 0;
 };
 ```
 
-### 4.2 作るときに渡すもの
+### 4.2 What is passed at creation
 
 ```cpp
 struct RangeImageAdapterSetup : SensorAdapterSetup {
-    IRayCaster* ray_caster{nullptr};       // ホストが持たなければ nullptr
-    IImageRenderer* renderer{nullptr};     // 同上
+    IRayCaster* ray_caster{nullptr};       // nullptr if the host does not have one
+    IImageRenderer* renderer{nullptr};     // same as above
 };
 ```
 
-### 4.3 真値
+### 4.3 Truth
 
 ```cpp
 struct SensorPoseTruth {
@@ -215,10 +215,10 @@ struct SensorPoseTruth {
 };
 ```
 
-### 4.4 出力
+### 4.4 Output
 
 ```cpp
-// 距離計（sensor_msgs/Range に似せる）
+// Rangefinder (resembles sensor_msgs/Range)
 enum class RadiationType : std::uint8_t { kUltrasound = 0, kInfrared = 1, kLaser = 2 };
 struct RangeSample {
     bool updated{false};
@@ -226,46 +226,46 @@ struct RangeSample {
     RadiationType radiation_type{RadiationType::kLaser};
     double field_of_view{0.0};   // [rad]
     double min_range{0.0}, max_range{0.0};  // [m]
-    double range{0.0};           // [m]、REP 117（±inf）
-    double variance{0.0};        // [m²]（設定から分かるとき。分からなければ 0）
+    double range{0.0};           // [m], REP 117 (±inf)
+    double variance{0.0};        // [m²] (when known from the configuration; 0 otherwise)
     std::uint32_t flags{0};
 };
 
-// LiDAR（sensor_msgs/LaserScan と PointCloud2 に似せる）
+// LiDAR (resembles sensor_msgs/LaserScan and PointCloud2)
 struct LidarPoint {
-    float x, y, z;         // センサの軸 [m]
-    float intensity;       // 能力の表で宣言。持たなければ 0
-    std::uint16_t ring;    // 縦の段の番号
-    float time_offset;     // 走査の始まりからの時刻 [s]
+    float x, y, z;         // sensor axes [m]
+    float intensity;       // declared in the capability table; 0 if not supported
+    std::uint16_t ring;    // vertical layer index
+    float time_offset;     // time from the start of the scan [s]
     std::int32_t object_id;
 };
 struct LidarScan {
     bool updated{false};
-    std::uint64_t sample_time_ns{0};    // 走査の始まり
-    SensorPoseTruth pose_at_end{};      // 走査が終わったときのセンサの姿勢
-    // LaserScan の形（行 = 縦の段、列 = 横）。2D は縦が 1 段
+    std::uint64_t sample_time_ns{0};    // start of the scan
+    SensorPoseTruth pose_at_end{};      // sensor pose when the scan ended
+    // LaserScan form (row = vertical layer, column = horizontal). 2D has 1 vertical layer
     double angle_min{0.0}, angle_max{0.0}, angle_increment{0.0};
     double vertical_angle_min{0.0}, vertical_angle_max{0.0}, vertical_angle_increment{0.0};
     std::uint32_t horizontal_count{0}, vertical_count{0};
     double time_increment{0.0}, scan_time{0.0};  // [s]
     double range_min{0.0}, range_max{0.0};       // [m]
-    const float* ranges{nullptr};       // vertical_count × horizontal_count、REP 117
-    const float* intensities{nullptr};  // 同じ並び
-    // PointCloud2 の形（当たった点と、選べば当たらない点）
+    const float* ranges{nullptr};       // vertical_count × horizontal_count, REP 117
+    const float* intensities{nullptr};  // same layout
+    // PointCloud2 form (hit points, and optionally no-hit points)
     const LidarPoint* points{nullptr};
     std::uint32_t point_count{0};
     std::uint32_t flags{0};
 };
 
-// カメラ（sensor_msgs/CameraInfo に似せる）
+// Camera (resembles sensor_msgs/CameraInfo)
 struct CameraInfo {
     std::uint32_t width{0}, height{0};
-    std::string distortion_model;   // "plumb_bob" など。歪みなしは空
-    std::vector<double> d;          // 歪みの係数
+    std::string distortion_model;   // "plumb_bob" and others. Empty for no distortion
+    std::vector<double> d;          // distortion coefficients
     std::array<double, 9> k{};      // 3×3
     std::array<double, 9> r{};      // 3×3
     std::array<double, 12> p{};     // 3×4
-    Quaternion sensor_to_optical{0.5, 0.5, -0.5, 0.5}; // センサの軸（FLU）から光学の軸（x 右、y 下、z 前）
+    Quaternion sensor_to_optical{0.5, 0.5, -0.5, 0.5}; // from sensor axes (FLU) to the optical frame (x right, y down, z forward)
 };
 enum class DepthType : std::uint8_t { kPlanar = 0, kPerspective = 1 };
 struct DepthImage {
@@ -273,7 +273,7 @@ struct DepthImage {
     std::uint64_t sample_time_ns{0};
     DepthType depth_type{DepthType::kPlanar};
     std::uint32_t width{0}, height{0};
-    const float* data{nullptr};     // [m]、行は上から下、REP 117
+    const float* data{nullptr};     // [m], rows from top to bottom, REP 117
     CameraInfo info{};
     std::uint32_t flags{0};
 };
@@ -281,14 +281,14 @@ struct RgbImage {
     bool updated{false};
     std::uint64_t sample_time_ns{0};
     std::uint32_t width{0}, height{0};
-    std::uint32_t step{0};          // 1 行のバイト数
-    const std::uint8_t* data{nullptr};  // rgb8、行は上から下
+    std::uint32_t step{0};          // bytes per row
+    const std::uint8_t* data{nullptr};  // rgb8, rows from top to bottom
     CameraInfo info{};
     std::uint32_t flags{0};
 };
 ```
 
-### 4.5 アダプタの口
+### 4.5 Adapter interfaces
 
 ```cpp
 class IRangefinderSensorAdapter : public ISensorAdapter {
@@ -313,32 +313,32 @@ public:
 };
 ```
 
-作る関数は、5 つのセンサと同じく、アダプタの実装の側に置きます（例：`create_mujoco_lidar_sensor_adapter(const RangeImageAdapterSetup&, std::string& error)`）。
+As with the 5 sensors, the creation functions are placed on the adapter implementation side (for example `create_mujoco_lidar_sensor_adapter(const RangeImageAdapterSetup&, std::string& error)`).
 
-## 5. 能力の表
+## 5. Capability table
 
-| 能力 | 距離計 | LiDAR | 深度 | RGB | 意味 |
+| Capability | Rangefinder | LiDAR | Depth | RGB | Meaning |
 |---|---|---|---|---|---|
-| `requires_ray_caster` | ○ | ○ | ○ | | レイを飛ばす部分が要る |
-| `requires_renderer` | | | ○ | ○ | 描く部分が要る（深度は、レイか描画のどちらか） |
-| `noise` | ○ | ○ | ○ | ○ | ノイズ |
-| `range_dependent_accuracy` | ○ | ○ | ○ | | 距離の範囲ごとの精度（σ と %） |
-| `resolution` | ○ | ○ | ○ | | 分解能 |
-| `cone` | ○ | | | | 円錐の中の何本かのレイで測る |
-| `rotating_scan` | | ○ | | | 回転しながら測る（点ごとの時刻、動きによる歪み） |
-| `intensity` | | ○ | | | 強度 |
-| `object_id` | | ○ | ○ | | 当たった物の番号 |
-| `lens_distortion` | | | ○ | ○ | レンズの歪み |
-| `deterministic_with_seed` | ○ | ○ | ○ | ○ | 同じ種・同じ入力なら同じ値 |
-| `thread_safe_across_instances` | ○ | ○ | ○ | ○ | 別のインスタンスを別のスレッドで動かしてよい |
+| `requires_ray_caster` | ○ | ○ | ○ | | Needs the ray casting part |
+| `requires_renderer` | | | ○ | ○ | Needs the rendering part (depth uses either rays or rendering) |
+| `noise` | ○ | ○ | ○ | ○ | Noise |
+| `range_dependent_accuracy` | ○ | ○ | ○ | | Accuracy per distance range (σ and %) |
+| `resolution` | ○ | ○ | ○ | | Resolution |
+| `cone` | ○ | | | | Measures with several rays inside a cone |
+| `rotating_scan` | | ○ | | | Measures while rotating (per-point time, distortion from motion) |
+| `intensity` | | ○ | | | Intensity |
+| `object_id` | | ○ | ○ | | Index of the hit object |
+| `lens_distortion` | | | ○ | ○ | Lens distortion |
+| `deterministic_with_seed` | ○ | ○ | ○ | ○ | Same values with the same seed and the same input |
+| `thread_safe_across_instances` | ○ | ○ | ○ | ○ | Different instances may run on different threads |
 
-## 6. ホスト（箱庭ドローン PRO）の側でやること
+## 6. What the host (Hakoniwa Drone PRO) does
 
-- `IRayCaster` を `mj_multiRay` で実装します。自分の機体の物には当たらないようにします（体の除外か、geom のグループで）。物の番号は、MuJoCo の geom から決めた、変わらない番号にします。
-- `IImageRenderer` を MuJoCo の描画で実装します。最初は標準の描画（OpenGL）を使い、Filament が MuJoCo の配布版に入ったら、同じ口の裏で差し替えます。
-- 出力を今の約束へ変えます。
-  - 3D LiDAR：`lidar_points`（PointCloud2）、`lidar_pos`（姿勢）、`DroneService/LiDARScan`
-  - 距離計：`Range`
-  - 2D LiDAR：`LaserScan`
-  - カメラ：`Image`、`CameraInfo`
-- 作る順番は、距離計 → 2D LiDAR → 3D LiDAR → 深度カメラ → RGB カメラです。それぞれで、出力を測って確かめます（決めた形の物を置いて、距離・角度・点の位置が真値と合うか）。
+- Implement `IRayCaster` with `mj_multiRay`. Rays must not hit the vehicle's own objects (by body exclusion or by geom group). The object index is a stable index derived from the MuJoCo geom.
+- Implement `IImageRenderer` with MuJoCo rendering. First use the standard rendering (OpenGL). When Filament is included in the MuJoCo distribution, swap it in behind the same interface.
+- Convert the output to the existing contracts:
+  - 3D LiDAR: `lidar_points` (PointCloud2), `lidar_pos` (pose), `DroneService/LiDARScan`
+  - Rangefinder: `Range`
+  - 2D LiDAR: `LaserScan`
+  - Camera: `Image`, `CameraInfo`
+- The build order is rangefinder → 2D LiDAR → 3D LiDAR → depth camera → RGB camera. For each, verify by measuring the output (place objects of known shape and check that distances, angles, and point positions match the truth).

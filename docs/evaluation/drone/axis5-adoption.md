@@ -1,11 +1,11 @@
-# 軸 5：入れやすさ（2026-11-01）
+# Axis 5: adoption effort (2026-11-01)
 
-| 項目 | 箱庭 | Gazebo（gz-sensors 10.2.0） | Project AirSim（core_sim） |
+| Item | Hakoniwa | Gazebo (gz-sensors 10.2.0) | Project AirSim (core_sim) |
 |---|---|---|---|
-| 追加の依存 | なし（センサのモデルは nlohmann/json だけを使う） | 実行に 37 ライブラリ・約 29 MB（libc・libstdc++ を除く。Ubuntu 24.04、arm64） | core_sim の依存の nng 1.11（2.x はヘッダが変わってビルドできない）・msgpack-cxx・Eigen・nlohmann/json。nng はリンクされるが、通信の口は開かない |
-| 入れ方 | 箱庭ドローン PRO と一緒にビルドされる | Ubuntu は apt で 562 パッケージ（イメージ 1.48 GB）。macOS・Windows は conda-forge（pixi）で約 1.8 GB・245 パッケージ。Homebrew だと 89 パッケージを足し、protobuf・abseil を上げる | 固定したコミットから、使う 140 ファイル（約 1 MB）を取ってきて sha256 で照合し、49 ファイルをコンパイルする（静的ライブラリ約 6 MB）。リポジトリには入れない |
-| ビルドのつまずき | なし | apt の gz-sensors の開発パッケージが、必須の `libgz-common7-profiler-dev` を連れてこない。IMU だけでも、CMake の設定が gz-rendering と OpenGL の開発ファイルを要求する | センサの作り方が非公開（`Robot` だけが作れる）なので、同じ名前の小さな作り手を置く。単体では呼ばれないシーン側の関数 16 個に代役が要る。msgpack を Boost なしで使う指定が要る。地磁気と気圧の設定の getter は、宣言だけで中身がない |
-| ビルドできる OS | macOS・Linux・Windows（箱庭ドローン PRO と同じ） | macOS・Linux で確認。Windows は conda-forge にパッケージがある（ビルドは確かめていない） | macOS で確認（conda-forge のパッケージは Linux・Windows にもある。ビルドは確かめていない） |
-| 実行時の副作用 | なし | センサを読み込むと、通信（gz-transport）のスレッドが立ち、マルチキャストで相手を探す。気圧はメッセージを待つ（最大 2 秒）。同じ PC のプロセスどうしで、通信の名前がぶつかりうる（軸 3） | 通信の口は開かない。アダプタ 1 つにつき、core_sim のメッセージの配送のスレッドが 2 本立つ（センサの値はそこを通らないので、待っているだけ） |
-| プロセスの中の共有の状態 | なし（インスタンスごとに独立） | 乱数がプロセスに 1 つ | なし（インスタンスごとに独立）。種はいつも同じ |
-| ピークのメモリ（軸 4 の測定のプロセス） | 26.4 MB | 49.6 MB | 25.9 MB |
+| Extra dependencies | None (the sensor models use only nlohmann/json) | 37 runtime libraries, about 29 MB (excluding libc and libstdc++; Ubuntu 24.04, arm64) | The core_sim dependencies nng 1.11 (2.x changed its headers and does not build), msgpack-cxx, Eigen, nlohmann/json. nng is linked, but no transport port is opened |
+| How it is installed | Built together with Hakoniwa Drone PRO | Ubuntu: 562 packages via apt (1.48 GB image). macOS and Windows: about 1.8 GB and 245 packages via conda-forge (pixi). With Homebrew, 89 packages are added and protobuf and abseil are upgraded | The 140 files used (about 1 MB) are fetched from a pinned commit, checked with sha256, and 49 files are compiled (static library about 6 MB). They are not stored in the repository |
+| Build pitfalls | None | The apt gz-sensors development package does not pull in the required `libgz-common7-profiler-dev`. Even for the IMU alone, the CMake configuration requires gz-rendering and OpenGL development files | Sensor construction is not public (only `Robot` can create them), so a small creator with the same name is provided. 16 scene-side functions that are never called in stand-alone use need stand-ins. msgpack must be configured to work without Boost. The getters of the magnetometer and barometer settings are declared but have no body |
+| OSes it builds on | macOS, Linux, Windows (same as Hakoniwa Drone PRO) | Confirmed on macOS and Linux. Windows has packages on conda-forge (build not checked) | Confirmed on macOS (conda-forge has packages for Linux and Windows too; build not checked) |
+| Runtime side effects | None | Loading a sensor starts a transport (gz-transport) thread that discovers peers by multicast. The barometer waits for a message (up to 2 seconds). Transport names can collide between processes on the same PC (axis 3) | No transport port is opened. Each adapter starts two core_sim message dispatch threads (sensor values do not pass through them, so they only wait) |
+| Shared state in the process | None (each instance is independent) | One random number generator per process | None (each instance is independent). The seed is always the same |
+| Peak memory (axis 4 measurement process) | 26.4 MB | 49.6 MB | 25.9 MB |
