@@ -39,6 +39,10 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
     target_link_libraries(force_torque_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
     add_test(NAME force_torque_adapter_contract COMMAND force_torque_adapter_contract_test)
 
+    add_executable(joint_sensor_adapter_contract_test test/joint_sensor_adapter_contract.cpp)
+    target_link_libraries(joint_sensor_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
+    add_test(NAME joint_sensor_adapter_contract COMMAND joint_sensor_adapter_contract_test)
+
     # The external sensor plugin interface is C: a fake plugin in C, loaded by a C++ host.
     enable_language(C)
     add_library(fake_external_sensor_plugin MODULE test/external_sensor_plugin/fake_plugin.c)
