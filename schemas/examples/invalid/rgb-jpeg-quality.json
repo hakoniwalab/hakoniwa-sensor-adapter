@@ -1,0 +1,12 @@
+{
+  "type": "rgb_camera",
+  "update_rate": 10,
+  "image": {
+    "width": 64,
+    "height": 48
+  },
+  "horizontal_fov": 1.2,
+  "output": {
+    "jpeg_quality": 0
+  }
+}

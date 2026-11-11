@@ -18,5 +18,8 @@
     "min": 0.01,
     "max": 20.0
   },
-  "no_return": "inf"
+  "no_return": "inf",
+  "output": {
+    "service_max_clients": 1
+  }
 }
