@@ -19,7 +19,10 @@ All headers are in `include/hakoniwa/sensor_adapter/`.
 | Depth camera and RGB camera | `camera_sensor_adapter.hpp` | `IDepthCameraSensorAdapter`, `IRgbCameraSensorAdapter` |
 | 6-axis force-torque sensor | `force_torque_sensor_adapter.hpp` | `IForceTorqueSensorAdapter` |
 | Joint sensors (encoder and joint torque) | `joint_sensor_adapter.hpp` | `IJointSensorAdapter` |
+| Implementation descriptor (how a host obtains adapters from an implementation) | `sensor_adapter_implementation.hpp` | `SensorAdapterImplementation`, entry point `hako_sensor_adapter_implementation_<name>` |
 | External sensor plugin (C ABI) | `external_sensor_plugin.h` | entry point `hako_external_sensor_plugin_v1` |
+
+Each implementation publishes one `SensorAdapterImplementation`: its name and one creation function per sensor type it provides (`nullptr` for the others). The entry point name is fixed by the implementation name, so a host can register an implementation from its name alone, for example from a build option that lists the linked implementations.
 
 The external sensor plugin ABI lets a host load range and image sensors as a shared library. Only C types cross the boundary, so the host and the plugin may be built with different compilers, C runtimes or build configurations.
 
