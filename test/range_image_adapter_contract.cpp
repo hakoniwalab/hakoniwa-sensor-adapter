@@ -5,10 +5,12 @@
 #include "hakoniwa/sensor_adapter/rangefinder_sensor_adapter.hpp"
 
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace sa = hakoniwa::sensor_adapter;
@@ -51,22 +53,43 @@ public:
     int calls{0};
 };
 
-// Host side: renders the same wall as planar depth.
+// Host side: renders the same wall as planar depth into the caller's buffers.
 class WallRenderer : public sa::IImageRenderer {
 public:
-    bool render(const sa::RenderRequest& request, sa::RenderResult& result, std::string&) override
+    bool render(const sa::RenderRequest* requests, std::size_t count, sa::RenderStatus* statuses) override
     {
-        depth_.assign(static_cast<std::size_t>(request.width) * request.height,
-                      kWall > request.far_clip ? std::numeric_limits<float>::infinity() : static_cast<float>(kWall));
-        rgb_.assign(static_cast<std::size_t>(request.width) * request.height * 3, 128);
-        result.depth = request.depth ? depth_.data() : nullptr;
-        result.rgb = request.rgb ? rgb_.data() : nullptr;
-        return true;
+        ++calls;
+        bool all_ok = true;
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto& r = requests[i];
+            const std::size_t pixels = static_cast<std::size_t>(r.camera.width) * r.camera.height;
+            statuses[i] = {};
+            if (((r.outputs & sa::kRenderDepth) && r.depth.capacity < pixels * sizeof(float))
+                || ((r.outputs & sa::kRenderRgb) && r.rgb.capacity < pixels * 3)) {
+                statuses[i].error = r.camera_name + ": destination too small";
+                all_ok = false;
+                continue;
+            }
+            if (r.outputs & sa::kRenderDepth) {
+                auto* depth = static_cast<float*>(r.depth.data);
+                for (std::size_t p = 0; p < pixels; ++p)
+                    depth[p] = kWall > r.camera.far_clip ? std::numeric_limits<float>::infinity()
+                                                         : static_cast<float>(kWall);
+            }
+            if (r.outputs & sa::kRenderRgb) {
+                std::memset(r.rgb.data, 128, pixels * 3);
+            }
+            statuses[i].ok = true;
+        }
+        return all_ok;
     }
-
-private:
-    std::vector<float> depth_;
-    std::vector<std::uint8_t> rgb_;
+    sa::ImageRendererCapabilities capabilities() const override
+    {
+        sa::ImageRendererCapabilities c{};
+        c.outputs = sa::kRenderRgb | sa::kRenderDepth;
+        return c;
+    }
+    int calls{0};
 };
 
 class Timing {
@@ -214,15 +237,25 @@ public:
         const int m = timing_.advance(truth.sim_time_ns, error);
         if (m < 0) return false;
         if (m == 1) {
-            sa::RenderRequest req{4, 3, kPi / 2, 0.1, 10.0, false, true};
-            sa::RenderResult res{};
-            if (!renderer_->render(req, res, error)) return false;
-            const double f = 2.0 / std::tan(req.horizontal_fov / 2);  // width / 2 / tan(fov / 2)
+            // 4x3, 90 degrees: f = width / 2 / tan(fov / 2), pixel centres at integers.
+            const double f = 2.0 / std::tan(kPi / 4);
+            sa::RenderRequest req{};
+            req.camera_name = "depth";
+            req.pose = truth;
+            req.camera = {4, 3, f, f, 1.5, 1.0, 0.1, 10.0};
+            req.outputs = sa::kRenderDepth;
+            planar_.resize(12);
+            req.depth = {planar_.data(), planar_.size() * sizeof(float)};
+            sa::RenderStatus status{};
+            if (!renderer_->render(&req, 1, &status)) {
+                error = status.error;
+                return false;
+            }
             data_.resize(12);
             for (std::uint32_t v = 0; v < 3; ++v)
                 for (std::uint32_t u = 0; u < 4; ++u) {
-                    const double x = (u + 0.5 - 2.0) / f, y = (v + 0.5 - 1.5) / f;
-                    data_[v * 4 + u] = static_cast<float>(res.depth[v * 4 + u] * std::sqrt(1 + x * x + y * y));
+                    const double x = (u - 1.5) / f, y = (v - 1.0) / f;
+                    data_[v * 4 + u] = static_cast<float>(planar_[v * 4 + u] * std::sqrt(1 + x * x + y * y));
                 }
             last_ = {};
             last_.updated = true;
@@ -233,7 +266,7 @@ public:
             last_.data = data_.data();
             last_.info.width = 4;
             last_.info.height = 3;
-            last_.info.k = {f, 0, 2.0, 0, f, 1.5, 0, 0, 1};
+            last_.info.k = {f, 0, 1.5, 0, f, 1.0, 0, 0, 1};
         } else {
             last_.updated = false;
         }
@@ -254,6 +287,7 @@ public:
 private:
     sa::IImageRenderer* renderer_;
     Timing timing_;
+    std::vector<float> planar_;
     std::vector<float> data_;
     sa::DepthImage last_{};
 };
@@ -319,6 +353,101 @@ void lidar()
     check(scans == 3, "three complete scans in 0.3 s");
 }
 
+// Ideal stereo rig (two RGB cameras, 0.12 m baseline): both drawn in one render call.
+class IdealStereoRig : public sa::IRgbCameraSensorAdapter {
+public:
+    explicit IdealStereoRig(const sa::RgbCameraAdapterSetup& s) : renderer_(s.renderer), timing_(s.physics_step_ns, 50000000) {}
+    bool step(const sa::SensorPoseTruth& truth, sa::RgbImages& out, std::string& error) override
+    {
+        const int m = timing_.advance(truth.sim_time_ns, error);
+        if (m < 0) return false;
+        if (m == 1) {
+            const double f = 2.0 / std::tan(kPi / 4);
+            sa::RenderRequest req[2]{};
+            sa::RenderStatus status[2]{};
+            for (int i = 0; i < 2; ++i) {
+                req[i].camera_name = i == 0 ? "left" : "right";
+                req[i].pose = truth;  // the rig offset is ignored by the wall renderer
+                req[i].camera = {4, 3, f, f, 1.5, 1.0, 0.1, 10.0};
+                req[i].outputs = sa::kRenderRgb;
+                pixels_[i].resize(4 * 3 * 3);
+                req[i].rgb = {pixels_[i].data(), pixels_[i].size()};
+            }
+            if (!renderer_->render(req, 2, status)) {
+                error = status[0].ok ? status[1].error : status[0].error;
+                return false;
+            }
+            for (int i = 0; i < 2; ++i) {
+                images_[i] = {};
+                images_[i].camera_name = req[i].camera_name;
+                images_[i].updated = true;
+                images_[i].sample_time_ns = truth.sim_time_ns;
+                images_[i].width = 4;
+                images_[i].height = 3;
+                images_[i].step = 12;
+                images_[i].data = pixels_[i].data();
+                images_[i].info.width = 4;
+                images_[i].info.height = 3;
+                images_[i].info.k = {f, 0, 1.5, 0, f, 1.0, 0, 0, 1};
+                images_[i].info.p = {f, 0, 1.5, i == 0 ? 0.0 : -f * 0.12, 0, f, 1.0, 0, 0, 0, 1, 0};
+            }
+        } else {
+            images_[0].updated = images_[1].updated = false;
+        }
+        out = {images_, 2};
+        return true;
+    }
+    bool reset(std::string&) override { timing_.reset(); return true; }
+    const std::vector<sa::LogColumn>& log_columns() const override { return kNoColumns; }
+    void log_values(std::vector<double>& v) const override { v.clear(); }
+    sa::RgbCameraAdapterCapabilities capabilities() const override
+    {
+        sa::RgbCameraAdapterCapabilities c{};
+        c.max_cameras = 2;
+        c.requires_renderer = true;
+        return c;
+    }
+
+private:
+    sa::IImageRenderer* renderer_;
+    Timing timing_;
+    std::vector<std::uint8_t> pixels_[2];
+    sa::RgbImage images_[2]{};
+};
+
+void stereo_rig()
+{
+    WallRenderer renderer;
+    sa::RgbCameraAdapterSetup s{};
+    s.renderer = &renderer;
+    std::unique_ptr<sa::IRgbCameraSensorAdapter> a = std::make_unique<IdealStereoRig>(s);
+    std::string e;
+    sa::RgbImages imgs{};
+    check(a->step(at(0), imgs, e) && imgs.count == 2, "a rig returns one image per camera");
+    check(renderer.calls == 1, "both cameras of the rig are drawn in one render call");
+    check(imgs.images[0].camera_name == "left" && imgs.images[1].camera_name == "right", "images carry the camera name");
+    check(imgs.images[0].data[0] == 128 && imgs.images[1].data[35] == 128, "the renderer wrote into the caller's buffers");
+    check(near(imgs.images[0].info.p[3], 0.0) && near(imgs.images[1].info.p[3], -imgs.images[1].info.k[0] * 0.12),
+          "the right camera's P carries the baseline (-fx * baseline)");
+    check(a->capabilities().max_cameras == 2, "the rig declares its number of cameras");
+}
+
+void renderer_rejects_small_buffers()
+{
+    WallRenderer renderer;
+    std::vector<float> small(3);
+    sa::RenderRequest req{};
+    req.camera_name = "small";
+    req.camera = {4, 3, 2, 2, 1.5, 1.0, 0.1, 10.0};
+    req.outputs = sa::kRenderDepth;
+    req.depth = {small.data(), small.size() * sizeof(float)};
+    const float before = small[0] = -7.0F;
+    sa::RenderStatus status{};
+    check(!renderer.render(&req, 1, &status) && !status.ok && !status.error.empty(),
+          "a destination smaller than the image is an error with a reason");
+    check(small[0] == before, "nothing is written to a destination that is too small");
+}
+
 void depth_camera()
 {
     WallRenderer renderer;
@@ -349,6 +478,8 @@ int main()
     rangefinder();
     lidar();
     depth_camera();
+    stereo_rig();
+    renderer_rejects_small_buffers();
     if (failures == 0) std::printf("range_image_adapter_contract: OK\n");
     return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

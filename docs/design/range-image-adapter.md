@@ -45,7 +45,7 @@ Host:                                                                           
 At creation, the host passes the "part that measures the world" to the adapter.
 
 - **`IRayCaster`** (casts rays): receives a batch of rays written in sensor axes (origins and directions), and casts them into the world from the sensor pose at the current step. For each ray, it returns whether it hit, the distance, the index of the hit object, and the normal of the hit surface (in sensor axes).
-- **`IImageRenderer`** (renders): receives the camera intrinsics (image size, field of view, near and far), and renders and returns an RGB or depth image from the sensor pose at the current step.
+- **`IImageRenderer`** (renders): a function. Each request carries the camera pose of the step, the camera (image size, intrinsics K, near and far), the outputs wanted (RGB, depth, segmentation) and destinations the caller owns. The renderer writes the images there. Several requests (the cameras of a rig, such as a stereo pair) are drawn in one call at the same world state. The call blocks and may be made from any thread; handing the work to the thread that owns the graphics context is the renderer's business.
 
 Hakoniwa Drone PRO implements rays with MuJoCo `mj_multiRay` and rendering with MuJoCo rendering. It measures the physics collision world (this matches the Hakoniwa rule: cheap visuals, collision shapes at real-object size).
 
@@ -149,7 +149,7 @@ There are 4 headers (`include/hakoniwa/sensor_adapter/`).
 
 | Header | Content |
 |---|---|
-| `range_image_sensor_adapter.hpp` | Common: `Ray`, `RayHit`, `IRayCaster`, `RenderRequest`, `RenderResult`, `IImageRenderer`, `RangeImageAdapterSetup`, `SensorPoseTruth`, `CameraInfo` |
+| `range_image_sensor_adapter.hpp` | Common: `Ray`, `RayHit`, `IRayCaster`, `RenderRequest`, `RenderStatus`, `IImageRenderer`, `RangeImageAdapterSetup`, `SensorPoseTruth`, `CameraInfo` |
 | `rangefinder_sensor_adapter.hpp` | Rangefinder: `RangeSample`, capability table, `IRangefinderSensorAdapter` |
 | `lidar_sensor_adapter.hpp` | LiDAR: `LidarPoint`, `LidarScan`, capability table, `ILidarSensorAdapter` |
 | `camera_sensor_adapter.hpp` | Depth and RGB: `DepthImage`, `RgbImage`, capability table, `IDepthCameraSensorAdapter`, `IRgbCameraSensorAdapter` |
@@ -177,22 +177,31 @@ public:
                       std::string& error) = 0;
 };
 
-struct RenderRequest {
+enum RenderOutput : std::uint32_t { kRenderRgb = 1, kRenderDepth = 2, kRenderSegmentation = 4 };
+struct ImageBuffer { void* data{nullptr}; std::size_t capacity{0}; };  // owned by the caller
+struct RenderCamera {
     std::uint32_t width{0}, height{0};
-    double horizontal_fov{0.0};  // [rad]
-    double near_clip{0.0}, far_clip{0.0};  // [m]
-    bool rgb{false};
-    bool depth{false};           // planar (distance from the camera plane) [m]
+    double fx{0.0}, fy{0.0}, cx{0.0}, cy{0.0};  // K, pixel centres at integers
+    double near_clip{0.0}, far_clip{0.0};        // [m]
 };
-struct RenderResult {
-    const std::uint8_t* rgb{nullptr};  // rgb8, rows from top to bottom
-    const float* depth{nullptr};        // [m], +inf out of range
+struct RenderRequest {
+    std::string camera_name;     // for errors and logs
+    SensorPoseTruth pose{};      // camera pose of this step; the renderer keeps no mount
+    RenderCamera camera{};
+    std::uint32_t outputs{0};    // RenderOutput bits
+    ImageBuffer rgb;             // rgb8, rows from top to bottom
+    ImageBuffer depth;           // float32 planar depth [m], +inf out of range
+    ImageBuffer segmentation;    // int32 object id, -1 where nothing is drawn
 };
+struct RenderStatus { bool ok{false}; std::string error; };
+struct ImageRendererCapabilities { std::uint32_t outputs{0}; bool lens_distortion{false}; bool non_square_pixels{false}; };
 class IImageRenderer {
 public:
     virtual ~IImageRenderer() = default;
-    // Render from the sensor pose at the current step. The result is valid until the next render.
-    virtual bool render(const RenderRequest& request, RenderResult& result, std::string& error) = 0;
+    // Draw count requests in one go at the same world state; blocks until done.
+    // A destination smaller than the image is an error for that request (nothing written).
+    virtual bool render(const RenderRequest* requests, std::size_t count, RenderStatus* statuses) = 0;
+    virtual ImageRendererCapabilities capabilities() const = 0;
 };
 ```
 
