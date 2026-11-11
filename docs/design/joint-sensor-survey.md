@@ -1,102 +1,102 @@
-# 関節のセンサ：シミュレータと実機の比較（設計の下調べ）
+# Joint sensors: comparison of simulators and real devices (design survey)
 
-ロボットの関節に付くセンサ（エンコーダと関節トルク）の口を決めるための下調べです。
-シミュレータのソースと資料、実機のデータシートを読み、何を測るか、誤差をどう表すかを比べました。
+This is a survey for defining the interface for sensors on robot joints (encoders and joint torque).
+We read simulator source code and documentation, and real device datasheets, and compared what is measured and how errors are represented.
 
-調べた版と資料：
+Versions and sources surveyed:
 
-- Gazebo：gz-sensors 10.2.0、gz-sim（`JointStatePublisher`、物理の部分）
-- MuJoCo：3.17.0 の `jointpos`・`jointvel`・`actuatorpos`・`actuatorvel`・`actuatorfrc`・`jointactuatorfrc`（`engine_sensor.c`、XML の資料）
-- Webots：`PositionSensor`、`Motor` のトルクの読み返し（資料とソース）
-- mujoco_ros2_control：main の `MujocoSystemInterface` と `hardware_interface.rst`
-- Isaac Sim 5.x（関節のセンサ）、PyBullet（`getJointState`）：資料
-- 実機：Feetech STS3215、ROBOTIS Dynamixel XM430-W350・XL430-W250、Franka FR3、KUKA LBR iiwa、Universal Robots UR5e、DOBOT CR5、RLS AksIM-2（絶対値エンコーダ）、Harmonic Drive CSF（減速機）
+- Gazebo: gz-sensors 10.2.0, gz-sim (`JointStatePublisher`, the physics part)
+- MuJoCo: 3.17.0 `jointpos`, `jointvel`, `actuatorpos`, `actuatorvel`, `actuatorfrc`, `jointactuatorfrc` (`engine_sensor.c`, XML documentation)
+- Webots: `PositionSensor`, `Motor` torque feedback (documentation and source)
+- mujoco_ros2_control: `MujocoSystemInterface` and `hardware_interface.rst` on main
+- Isaac Sim 5.x (joint sensors), PyBullet (`getJointState`): documentation
+- Real devices: Feetech STS3215, ROBOTIS Dynamixel XM430-W350 and XL430-W250, Franka FR3, KUKA LBR iiwa, Universal Robots UR5e, DOBOT CR5, RLS AksIM-2 (absolute encoder), Harmonic Drive CSF (gearbox)
 
-## 1. 先に決めたこと
+## 1. Decisions made first
 
-- 単位は SI（rad、rad/s、N·m）にそろえます。データシートの値（ビット、カウント、度、arcmin、rpm、%）は、設定を読むところで換算します。
-- 口は ROS に依存しません。値は `sensor_msgs/JointState` に似せます。
-- 時刻、乱数の種、`reset`、ログの列は、今のセンサの口と同じ決まりにします。
+- Units are SI (rad, rad/s, N·m). Datasheet values (bits, counts, degrees, arcmin, rpm, %) are converted where the configuration is read.
+- The interface does not depend on ROS. The values resemble `sensor_msgs/JointState`.
+- Time, random seed, `reset`, and log columns follow the same rules as the existing sensor interfaces.
 
-## 2. シミュレータ
+## 2. Simulators
 
 | | Gazebo | MuJoCo | Webots | mujoco_ros2_control | Isaac Sim | PyBullet |
 |---|---|---|---|---|---|---|
-| 角度 | 物理の真値（`JointStatePublisher`） | `jointpos` = `qpos`、`actuatorpos` は減速比をかけた値 | `PositionSensor`：真値にノイズを足してから分解能で丸める | `qpos` そのまま | 物理の真値 | 真値 |
-| 速度 | 物理の真値（差分ではない） | `jointvel` = `qvel`（真値） | 出さない | `qvel` そのまま | 真値 | 真値 |
-| トルク | 出す欄はあるが、値を書く部分が見当たらない（空か 0 の疑い） | `jointactuatorfrc` = その関節のアクチュエータの力の合計。拘束・摩擦・接触は含まない | モーターのトルク（ばね・減衰・拘束は含まない） | `qfrc_actuator` | 関節の軸に写した関節の力 | 指令したモーターのトルク |
-| ノイズ | なし | `noise` は書けるが足さない | 角度にガウス（絶対値の σ） | 関節にはなし | なし | なし |
-| 分解能 | なし | なし（`cutoff` で切るだけ） | `resolution`（負の値で丸めが非対称になる疑い） | なし | なし | なし |
-| 遅れ・周期 | 周期だけ | `delay`・`interval`・補間 | 周期だけ | なし | なし | なし |
-| 減速機・ガタ | なし | 線形の減速比（`gear`）だけ | なし | ros2_control の `transmission` で線形に換算 | なし | なし |
-| 乱数 | なし | なし | 種を設定できる | 関節にはなし | なし | なし |
+| Angle | Physics truth (`JointStatePublisher`) | `jointpos` = `qpos`; `actuatorpos` is multiplied by the gear ratio | `PositionSensor`: adds noise to the truth, then rounds to the resolution | `qpos` as is | Physics truth | Truth |
+| Velocity | Physics truth (not a difference) | `jointvel` = `qvel` (truth) | Not output | `qvel` as is | Truth | Truth |
+| Torque | There is a field for it, but no code that writes the value was found (suspected empty or 0) | `jointactuatorfrc` = sum of the actuator forces on that joint. Does not include constraints, friction, or contact | Motor torque (does not include springs, damping, or constraints) | `qfrc_actuator` | Joint force projected onto the joint axis | Commanded motor torque |
+| Noise | None | `noise` can be written but is not added | Gaussian on the angle (absolute σ) | None for joints | None | None |
+| Resolution | None | None (only clipping with `cutoff`) | `resolution` (suspected asymmetric rounding for negative values) | None | None | None |
+| Delay, period | Period only | `delay`, `interval`, interpolation | Period only | None | None | None |
+| Gearbox, backlash | None | Linear gear ratio only (`gear`) | None | Linear conversion with the ros2_control `transmission` | None | None |
+| Random numbers | None | None | The seed can be set | None for joints | None | None |
 
-気づいた点：
+Observations:
 
-- **エンコーダのカウントを出すものがない：** カウント、増分式、1 回転で戻る値、多回転は、どれも表しません。丸めがあるのは Webots の `resolution` だけです。
-- **速度は、どれも物理の真値：** 実機の多くは、丸めた角度の差分から速度を作ります。そのときの低速での階段や遅れを、どれも再現しません。
-- **モーター側で測る形がない：** 減速機の手前で測ると、角度の分解能は減速比倍に細かくなる一方で、ガタやたわみの分だけ関節の本当の角度とずれます。どれも、線形の換算までです。
-- **トルクの意味がばらばら：** アクチュエータが出した力（MuJoCo）、モーターのトルク（Webots）、関節を通る力（Isaac Sim）、指令（PyBullet）と、測っているものが違います。トルクセンサのノイズ・ずれ・帯域は、どれも持ちません。
+- **Nothing outputs encoder counts:** None represents counts, incremental encoders, values that wrap per revolution, or multi-turn values. Only Webots `resolution` does any rounding.
+- **Velocity is always the physics truth:** Many real devices produce velocity from differences of rounded angles. None reproduces the resulting steps at low speed or the delay.
+- **No form for measuring on the motor side:** Measuring before the gearbox makes the angle resolution finer by the gear ratio, but the value deviates from the true joint angle by the backlash and deflection. All of them stop at a linear conversion.
+- **The meaning of torque varies:** What is measured differs: the force the actuator produced (MuJoCo), motor torque (Webots), the force transmitted through the joint (Isaac Sim), the command (PyBullet). None has the noise, bias, or bandwidth of a torque sensor.
 
-## 3. 実機
+## 3. Real devices
 
-| | 角度の分解能 | 絶対値・増分 | 減速比・ガタ | 速度 | トルク |
+| | Angle resolution | Absolute or incremental | Gear ratio, backlash | Velocity | Torque |
 |---|---|---|---|---|---|
-| Feetech STS3215 | 12 ビット（4096 カウント/回転、0.088°） | 磁気式の絶対値。多回転 ±7 回転（電源を切ると回転数は消える） | 1:345（ガタの記載なし） | 単位だけ（50 ステップ/s = 0.732 rpm）。作り方の記載なし | 負荷（出力のデューティ、1000 = 100 %）。トルクの測定ではない。電流 6.5 mA/カウント |
-| Dynamixel XM430-W350 | 12 ビット（AS5045） | 絶対値 | 353.5:1、ガタ 15 arcmin（0.25°） | 0.229 rpm/カウント | 電流 2.69 mA/カウント、トルク定数 1.78〜1.81 N·m/A |
-| Dynamixel XL430-W250 | 12 ビット（AS5601） | 絶対値 | 258.5:1 | 0.229 rpm/カウント | 電流のセンサなし。負荷は出力から推定（0.1 %） |
-| Franka FR3 | 公開していない | — | — | 1 kHz で出す | 7 軸すべてにトルクセンサ（範囲 ±87・±12 N·m）。分解能・正確さは公開していない |
-| KUKA LBR iiwa | 公開していない | — | — | — | 全軸にトルクセンサ、正確さは最大トルクの ±2 % |
-| UR5e・DOBOT CR5 | 公開していない（手先の繰り返し精度 ±0.02〜0.03 mm だけ） | — | — | — | — |
-| RLS AksIM-2 | 最大 20 ビット | 絶対値（多回転あり） | — | 測る周期 18 kHz、遅れ 10 µs 未満 | — |
-| Harmonic Drive CSF | — | — | ガタ 18〜60 arcsec、ヒステリシス 1〜2 arcmin、ねじりの剛性は 3 段の折れ線 | — | — |
+| Feetech STS3215 | 12 bits (4096 counts/rev, 0.088°) | Magnetic absolute. Multi-turn ±7 turns (the turn count is lost when power is off) | 1:345 (backlash not stated) | Unit only (50 steps/s = 0.732 rpm). How it is produced is not stated | Load (output duty, 1000 = 100 %). Not a torque measurement. Current 6.5 mA/count |
+| Dynamixel XM430-W350 | 12 bits (AS5045) | Absolute | 353.5:1, backlash 15 arcmin (0.25°) | 0.229 rpm/count | Current 2.69 mA/count, torque constant 1.78 to 1.81 N·m/A |
+| Dynamixel XL430-W250 | 12 bits (AS5601) | Absolute | 258.5:1 | 0.229 rpm/count | No current sensor. Load estimated from the output (0.1 %) |
+| Franka FR3 | Not published | — | — | Output at 1 kHz | Torque sensors on all 7 axes (range ±87 and ±12 N·m). Resolution and accuracy not published |
+| KUKA LBR iiwa | Not published | — | — | — | Torque sensors on all axes, accuracy ±2 % of maximum torque |
+| UR5e, DOBOT CR5 | Not published (only end-effector repeatability ±0.02 to 0.03 mm) | — | — | — | — |
+| RLS AksIM-2 | Up to 20 bits | Absolute (multi-turn available) | — | Sample rate 18 kHz, delay under 10 µs | — |
+| Harmonic Drive CSF | — | — | Backlash 18 to 60 arcsec, hysteresis 1 to 2 arcmin, torsional stiffness as a 3-segment piecewise-linear curve | — | — |
 
-数値の出どころ（2026-11-11 に取得）：
+Sources of the numbers (retrieved 2026-11-11):
 
-| 機種 | 資料 |
+| Model | Source |
 |---|---|
 | Feetech STS3215 | https://www.mantech.co.za/datasheets/products/sts3215-200620a-1.pdf |
 | Dynamixel XM430-W350 | https://emanual.robotis.com/docs/en/dxl/x/xm430-w350/ |
 | Dynamixel XL430-W250 | https://emanual.robotis.com/docs/en/dxl/x/xl430-w250/ |
-| Franka FR3 | データシート R02212 v2.6 |
-| KUKA LBR iiwa | 製品の冊子 |
+| Franka FR3 | Datasheet R02212 v2.6 |
+| KUKA LBR iiwa | Product brochure |
 | UR5e | https://www.universal-robots.com/manuals/latest/en/datasheets/ur5e/ |
-| RLS AksIM-2 | データシート MBD01_07 https://cdn.rls.si/documents/datasheets/MBD01_07_ds.pdf |
-| Harmonic Drive CSF | ギアユニットのカタログ https://global.harmonicdrive.net/_hd/content/documents1/CSG-CSF_GearUnits.pdf |
+| RLS AksIM-2 | Datasheet MBD01_07 https://cdn.rls.si/documents/datasheets/MBD01_07_ds.pdf |
+| Harmonic Drive CSF | Gear unit catalog https://global.harmonicdrive.net/_hd/content/documents1/CSG-CSF_GearUnits.pdf |
 
-### データシートに出てくる項目
+### Items that appear in datasheets
 
-| 項目 | どこに出てくるか | 書き方 |
+| Item | Where it appears | How it is written |
 |---|---|---|
-| 角度の分解能 | サーボ、エンコーダ | ビット、1 回転あたりのカウント、1 カウントあたりの度 |
-| 絶対値・増分、多回転 | ほとんど | 言葉 |
-| 減速比 | サーボ、減速機 | N:1 |
-| 速度・電流・負荷の単位 | サーボ | 1 カウントあたりの rpm・mA・% |
-| ガタ・ヒステリシス | 減速機、一部のサーボ | arcmin、arcsec |
-| ねじりの剛性 | 減速機 | N·m/rad（折れ線） |
-| トルクセンサの正確さ | 一部の協働ロボット | 最大トルクの ±% |
-| 測る周期・遅れ | エンコーダ、一部のロボット | kHz、µs |
-| エンコーダのノイズ | どこにもない | — |
-| 速度の作り方 | どこにもない | 単位だけ |
-| 協働ロボットの関節のエンコーダのビット数 | 公開していない | — |
+| Angle resolution | Servos, encoders | Bits, counts per revolution, degrees per count |
+| Absolute or incremental, multi-turn | Most | In words |
+| Gear ratio | Servos, gearboxes | N:1 |
+| Velocity, current, and load units | Servos | rpm, mA, or % per count |
+| Backlash, hysteresis | Gearboxes, some servos | arcmin, arcsec |
+| Torsional stiffness | Gearboxes | N·m/rad (piecewise linear) |
+| Torque sensor accuracy | Some collaborative robots | ±% of maximum torque |
+| Sample period, delay | Encoders, some robots | kHz, µs |
+| Encoder noise | Nowhere | — |
+| How velocity is produced | Nowhere | Unit only |
+| Bit count of collaborative robot joint encoders | Not published | — |
 
-## 4. 言えること
+## 4. Findings
 
-- **エンコーダを本当に表しているシミュレータはない：** カウント、差分で作る速度、モーター側で測ること、ガタは、どれも持っていません。ここが箱庭の差になります。
-- **トルクは「何を測るか」を口で決める必要がある：** 関節のトルクセンサ（関節を通る力）と、電流からの推定（アクチュエータの力に摩擦の分が乗る）は、別のものです。
-- **データシートに数値がない項目が多い：** ノイズと速度の作り方は、どの機種も書いていません。設定で選べるようにし、既定は誤差なしにします。
+- **No simulator really represents encoders:** None has counts, velocity from differences, motor-side measurement, or backlash. This is where Hakoniwa can make a difference.
+- **For torque, the interface must define "what is measured":** A joint torque sensor (the force transmitted through the joint) and an estimate from current (the actuator force plus friction) are different things.
+- **Many items have no numbers in datasheets:** No model states the noise or how velocity is produced. These are made selectable in the configuration, with no error by default.
 
-## 5. 口に取り入れること（案）
+## 5. What to adopt in the interface (proposal)
 
-| 項目 | 案 | 理由 |
+| Item | Proposal | Reason |
 |---|---|---|
-| 1 つの口の単位 | 1 つの関節に 1 つ（角度・速度・トルク） | 関節ごとに機種や減速比が違う。同じ設定ファイルを何本の関節にも使える |
-| 真値 | ホストが関節の角度・速度、アクチュエータの力、関節を通るトルクを渡す | トルクセンサと電流からの推定で、測るものが違うため |
-| 分解能 | 1 回転あたりのカウント（ビットでも書ける）。測る側（関節側かモーター側か）と減速比を書く | データシートの書き方に合わせる。モーター側なら、関節の角度の分解能は減速比倍に細かくなる |
-| ガタ・たわみ | モーター側で測るときだけ。ガタは幅（遊び）、たわみは線形の剛性 | 減速機のカタログの値をそのまま使える。折れ線の剛性は、まず 1 本の直線で近似する |
-| 絶対値・増分 | 増分式は、始めの角度を 0 とした値を出す。1 回転で戻る値も選べる | 実機のサーボの振る舞い |
-| 速度 | 真値か、丸めた角度の差分（窓の長さを選べる）か。速度の単位（rpm/カウント）で丸められる | 実機の多くは差分。どれも再現していない |
-| トルク | トルクセンサ（関節を通る力）か、電流からの推定（アクチュエータの力 + 摩擦）か。正確さ（%）、ずれ、ノイズ、分解能、範囲 | 測るものの違いを、設定ではっきり選ぶ |
-| 遅れ・周期 | 今のセンサと同じ | MuJoCo の `delay` と同じ考え方 |
-| ノイズ | カウント単位の σ。既定は 0 | データシートにないので、利用者が調整する値 |
-| 単位の書き方 | 角度は rad のほか `deg`・`arcmin`・`arcsec`、速度は `rpm` も書ける | データシートの値をそのまま写せる |
+| Unit of one interface | One per joint (angle, velocity, torque) | Model and gear ratio differ per joint. The same configuration file can be used for any number of joints |
+| Truth | The host passes the joint angle and velocity, the actuator force, and the torque transmitted through the joint | A torque sensor and an estimate from current measure different things |
+| Resolution | Counts per revolution (can also be written in bits). Also write the measuring side (joint side or motor side) and the gear ratio | Matches how datasheets are written. On the motor side, the joint angle resolution becomes finer by the gear ratio |
+| Backlash, deflection | Only when measuring on the motor side. Backlash as a width (play), deflection as a linear stiffness | Gearbox catalog values can be used directly. A piecewise-linear stiffness is first approximated by one straight line |
+| Absolute or incremental | Incremental outputs values with the initial angle as 0. Values that wrap per revolution can also be selected | Behavior of real servos |
+| Velocity | Truth, or the difference of rounded angles (window length selectable). Can be rounded to the velocity unit (rpm/count) | Many real devices use differences. None reproduces it |
+| Torque | Torque sensor (force transmitted through the joint) or estimate from current (actuator force + friction). Accuracy (%), bias, noise, resolution, range | Select the difference in what is measured explicitly in the configuration |
+| Delay, period | Same as the existing sensors | Same idea as MuJoCo `delay` |
+| Noise | σ in counts. Default 0 | Not in datasheets, so it is a value the user tunes |
+| Unit notation | Angles in rad, also `deg`, `arcmin`, `arcsec`; velocity also in `rpm` | Datasheet values can be copied directly |

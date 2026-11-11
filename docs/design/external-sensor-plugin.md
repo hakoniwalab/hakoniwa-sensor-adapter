@@ -1,65 +1,65 @@
-# 外部センサのプラグインの口（設計）
+# External sensor plugin interface (design)
 
-シミュレータ（ホスト）が、自分の物理の世界で測る距離と画像のセンサ（距離計、LiDAR、深度カメラ、RGB カメラ）を、共有ライブラリ（プラグイン）として読み込むための口です。
-ヘッダは `include/hakoniwa/sensor_adapter/external_sensor_plugin.h`（C）です。
+This is the interface through which a simulator (the host) loads range and image sensors (rangefinder, LiDAR, depth camera, RGB camera) as shared libraries (plugins). The sensors measure the host's own physics world.
+The header is `include/hakoniwa/sensor_adapter/external_sensor_plugin.h` (C).
 
-## 1. 受け持ち
+## 1. Responsibilities
 
-| | ホスト | プラグイン |
+| | Host | Plugin |
 |---|---|---|
-| 設定 | プラグインの場所、センサの設定ファイルの場所、取り付け、出す周期を渡す | センサの設定ファイルを読む |
-| 世界 | 物理の世界（MuJoCo なら `mjModel`・`mjData`）、センサを載せた体、取り付けの姿勢を渡す | 世界を測る（レイ、描画）。世界を書き換えない |
-| 時刻 | 命の流れの順に呼び、物理の刻みのあとに `step` を呼ぶ | 測る周期、走査の進み方 |
-| スレッド | 頼まれたら、メインのスレッドで `main_thread_poll` を呼ぶ | メインのスレッドが要る仕事（macOS のカメラの描画など）を、そこでする |
-| 出力 | 何もしない | 箱庭の PDU に書き、サービスに答える |
+| Configuration | Passes the plugin location, the sensor configuration file location, the mounting, and the output period | Reads the sensor configuration file |
+| World | Passes the physics world (`mjModel` and `mjData` for MuJoCo), the body that carries the sensor, and the mounting pose | Measures the world (rays, rendering). Does not modify the world |
+| Time | Calls the functions in lifecycle order, and calls `step` after each physics step | Sample period, scan progression |
+| Threads | On request, calls `main_thread_poll` on the main thread | Does work that needs the main thread there (for example camera rendering on macOS) |
+| Output | Does nothing | Writes Hakoniwa PDUs and answers services |
 
-プラグインの中では、このリポジトリの C++ の口（`IRangefinderSensorAdapter` など）のアダプタを使えます。C の境目は、その外側の包みです。
+Inside the plugin, you can use the adapters of the C++ interfaces in this repository (`IRangefinderSensorAdapter` and others). The C boundary is a wrapper around them.
 
-## 2. 境目は C の型だけ
+## 2. Only C types cross the boundary
 
-- 境目を渡るのは、C の構造体・数・文字列のポインタだけです。C++ のオブジェクト、標準ライブラリの型、例外は渡りません。片方で確保したメモリを、もう片方で解放することもありません（プラグインが作ったものはプラグインが壊す）。
-- そのため、ホストとプラグインのコンパイラ、C の実行時ライブラリ（MSVC の /MT と /MD）、Debug と Release が違っていても壊れません。
-- 入口は、1 つの C の関数 `hako_external_sensor_plugin_v1` です。静的な場所にある関数の表を返します。
-- ホストは、表の `struct_size`・`abi_version`・`interface_revision` と、物理エンジンの名前と版（`world_engine`・`world_engine_version`）を確かめ、合わなければ読み込みを断ります。
-- 作るときの引数（`HakoExternalSensorCreateV1`）にも `struct_size` があります。プラグインは、自分が知っている大きさより小さければ断ります。
-- 失敗は、戻り値（0 以外）と、ホストが渡すバッファに書くエラーの文字列で返します。文字列は、バッファの大きさで切り、必ず終わりの 0 を付けます。
+- Only C structs, numbers, and string pointers cross the boundary. C++ objects, standard library types, and exceptions do not. Memory allocated on one side is never freed on the other side (what the plugin creates, the plugin destroys).
+- Because of this, nothing breaks when the host and the plugin use different compilers, different C runtime libraries (MSVC /MT and /MD), or different Debug and Release builds.
+- The entry point is one C function, `hako_external_sensor_plugin_v1`. It returns a function table stored in static memory.
+- The host checks the table's `struct_size`, `abi_version`, and `interface_revision`, and the physics engine name and version (`world_engine`, `world_engine_version`). If they do not match, the host refuses to load the plugin.
+- The creation arguments (`HakoExternalSensorCreateV1`) also have `struct_size`. The plugin refuses them if the size is smaller than the size it knows.
+- Failures are returned as a return value (non-zero) and an error string written to a buffer that the host passes. The string is cut to the buffer size and always ends with a terminating 0.
 
-## 3. 命の流れ
+## 3. Lifecycle
 
-| 順 | 関数 | いつ | プラグインがすること |
+| Order | Function | When | What the plugin does |
 |---|---|---|---|
-| 1 | `create` | 止まっている間 | 設定を読み、世界を測る準備をする |
-| 2 | `register_services` | 箱庭のアセットの登録のあと、最初の開始の前 | 自分のサービスの設定ファイルを `service_config_dir` に書き出し、`hako_asset_service_initialize` で登録する |
-| 3 | `on_start` | 開始の知らせ（開始の返事の前） | 自分のサービスのサーバーを作る |
-| 4 | `step` | 動いている間、物理の刻みのあとに毎刻み、シミュレーションのスレッドで | 測る、PDU に書く、頼みに答える |
-| 5 | `on_stop` | 止まるとき | 途中の頼みを捨てる。待っている `step` を解く |
-| 6 | `reset` | リセットのとき | 作ったときの状態に戻す |
-| 7 | `destroy` | 最後 | 片付ける |
-| — | `main_thread_poll` | 1 と 7 の間、メインのスレッドで何度でも | メインのスレッドが要る仕事をする |
+| 1 | `create` | While stopped | Reads the configuration and prepares to measure the world |
+| 2 | `register_services` | After Hakoniwa asset registration, before the first start | Writes its service configuration file to `service_config_dir` and registers it with `hako_asset_service_initialize` |
+| 3 | `on_start` | On the start notification (before the start reply) | Creates the servers for its services |
+| 4 | `step` | While running, every step after the physics step, on the simulation thread | Measures, writes PDUs, answers requests |
+| 5 | `on_stop` | On stop | Discards pending requests. Releases a waiting `step` |
+| 6 | `reset` | On reset | Returns to the state right after creation |
+| 7 | `destroy` | Last | Cleans up |
+| — | `main_thread_poll` | Between 1 and 7, on the main thread, any number of times | Does work that needs the main thread |
 
-- 止めたあとに、もう一度開始するときは、3 から始めます（サービスの登録は残っている）。
-- `needs_main_thread` が 1 のセンサは、`main_thread_poll` を頼りにします。その `step` は、メインのスレッドが仕事を終えるまで待つことがあります。待っている間、ホストは物理を進めません。そのため、描画はその刻みの状態を見ます。
-- `on_stop` と `destroy` は、待っている `step` を解きます（`step` は待ち続けず、エラーで返る）。止めるときに固まりません。
-- `needs_main_thread` が 1 のセンサは、`destroy` もメインのスレッドで呼びます。メインのスレッドで作ったもの（macOS の OpenGL の窓など）は、そこで片付ける必要があるためです。
+- To start again after a stop, begin from 3 (the service registration remains).
+- A sensor with `needs_main_thread` set to 1 depends on `main_thread_poll`. Its `step` may wait until the main thread finishes the work. While it waits, the host does not advance physics. So rendering sees the state of that step.
+- `on_stop` and `destroy` release a waiting `step` (`step` does not wait forever; it returns an error). Stopping does not hang.
+- For a sensor with `needs_main_thread` set to 1, `destroy` is also called on the main thread. Objects created on the main thread (for example an OpenGL window on macOS) must be cleaned up there.
 
-## 4. 時刻
+## 4. Time
 
-- `step` の `sim_time_ns` は、センサが測る物理の状態の時刻です。物理の刻みのあとに呼ぶので、MuJoCo なら刻みのあとの `mjData.time`（ns）です。
-- 時刻は、物理の刻み（`physics_step_ns`）ずつ進みます。開始の最初の `step` は、最初の刻みのあとの時刻です。リセットのあとは、また最初の刻みのあとの時刻から始まります。
-- プラグインが出す値の時刻（PDU の時刻、サービスの応答の時刻）は、その値を測った `sim_time_ns` です。
+- `sim_time_ns` in `step` is the time of the physics state that the sensor measures. Because `step` is called after the physics step, for MuJoCo this is `mjData.time` (ns) after the step.
+- Time advances by the physics step (`physics_step_ns`). The first `step` after start has the time after the first physics step. After a reset, time again starts from the time after the first physics step.
+- The time of the values that the plugin outputs (PDU time, service response time) is the `sim_time_ns` at which the value was measured.
 
-## 5. 取り付け
+## 5. Mounting
 
-- ホストは、センサを載せた体（物理エンジンの体の番号）と、その体の座標系から見た取り付けの位置と姿勢（その体の座標系の軸）を渡します。プラグインは、毎刻み、その体の今の姿勢から、センサの姿勢を求めます。
-- その体と、その下の体は、センサを載せた機体です。センサはそれを測りません。
-- MJCF などのモデルを書き換えずに、センサを付けられます。
+- The host passes the body that carries the sensor (the physics engine body index), and the mounting position and orientation seen from that body's frame (in that body's frame axes). Every step, the plugin computes the sensor pose from the current pose of that body.
+- That body and the bodies below it are the vehicle that carries the sensor. The sensor does not measure them.
+- You can attach sensors without modifying the model (MJCF or other).
 
-## 6. 確かめ方
+## 6. How it is verified
 
-`test/external_sensor_plugin_contract.cpp` が、C だけで書いた偽のプラグイン（`test/external_sensor_plugin/fake_plugin.c`）を共有ライブラリとして読み込みます。確かめていることは次のとおりです。
+`test/external_sensor_plugin_contract.cpp` loads a fake plugin written only in C (`test/external_sensor_plugin/fake_plugin.c`) as a shared library. It checks the following:
 
-- 入口の関数が出ていること
-- 表の大きさと版
-- 命の流れの順（開始の前の `step` は断る、止めてからもう一度開始できる）
-- メインのスレッドが要るセンサ
-- 誤り（知らない種類、小さすぎる引数、エラーの文字列の切り方）
+- The entry function is exported
+- The table size and version
+- The lifecycle order (`step` before start is refused; the plugin can start again after a stop)
+- Sensors that need the main thread
+- Errors (unknown type, arguments that are too small, how the error string is cut)

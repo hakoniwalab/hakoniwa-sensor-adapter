@@ -1,108 +1,108 @@
-# 力覚センサ：シミュレータと実機の比較（設計の下調べ）
+# Force-torque sensors: comparison of simulators and real devices (design survey)
 
-6 軸の力覚センサ（力 Fx・Fy・Fz とモーメント Tx・Ty・Tz）の口を決めるための下調べです。
-シミュレータのソースと資料、実機のデータシートを読み、何を測るか、誤差をどう表すかを比べました。
+This is a survey for defining the interface for 6-axis force-torque sensors (forces Fx, Fy, Fz and moments Tx, Ty, Tz).
+We read simulator source code and documentation, and real device datasheets, and compared what is measured and how errors are represented.
 
-調べた版と資料：
+Versions and sources surveyed:
 
-- Gazebo：gz-sensors 10.2.0（`ForceTorqueSensor`、`GaussianNoiseModel`）、gz-sim の ForceTorque システム、SDFormat 1.12 の `<force_torque>`
-- MuJoCo：3.17.0 の `force`・`torque` センサ（`engine_sensor.c`、XML の資料）
-- mujoco_ros2_control：main の `MujocoSystemInterface` と `hardware_interface.rst`
-- Isaac Sim 5.1（関節の力のセンサ、接触のセンサ）、Webots の `TouchSensor`（force-3d）、PyBullet の `enableJointForceTorqueSensor`：資料と主なソース
-- 実機：ATI（Mini45、Axia80、Net F/T）、Robotiq FT 300-S、OnRobot HEX-E QC／HEX-H QC、Bota SensONE、Universal Robots e シリーズの手先の力覚、KUKA LBR iiwa の関節トルクからの推定
+- Gazebo: gz-sensors 10.2.0 (`ForceTorqueSensor`, `GaussianNoiseModel`), the gz-sim ForceTorque system, SDFormat 1.12 `<force_torque>`
+- MuJoCo: 3.17.0 `force` and `torque` sensors (`engine_sensor.c`, XML documentation)
+- mujoco_ros2_control: `MujocoSystemInterface` and `hardware_interface.rst` on main
+- Isaac Sim 5.1 (joint force sensor, contact sensor), Webots `TouchSensor` (force-3d), PyBullet `enableJointForceTorqueSensor`: documentation and main source code
+- Real devices: ATI (Mini45, Axia80, Net F/T), Robotiq FT 300-S, OnRobot HEX-E QC / HEX-H QC, Bota SensONE, Universal Robots e-Series end-effector force sensing, KUKA LBR iiwa estimation from joint torques
 
-## 1. 先に決めたこと
+## 1. Decisions made first
 
-- 単位は SI（N、N·m）にそろえます。データシートの値（% FS、mN、mN·m、1 時間あたり）は、設定を読むところで換算します。
-- 口は ROS に依存しません。データ型は ROS の `geometry_msgs/WrenchStamped` に似せ、名前と意味をそろえます。
-- 時刻、乱数の種、`reset`、ログの列は、今のセンサの口（[imu-adapter.md](imu-adapter.md)）と同じ決まりにします。
+- Units are SI (N, N·m). Datasheet values (% FS, mN, mN·m, per hour) are converted where the configuration is read.
+- The interface does not depend on ROS. The data type resembles ROS `geometry_msgs/WrenchStamped`, with matching names and meanings.
+- Time, random seed, `reset`, and log columns follow the same rules as the existing sensor interfaces ([imu-adapter.md](imu-adapter.md)).
 
-## 2. シミュレータ
+## 2. Simulators
 
-| | Gazebo（gz-sim と gz-sensors） | MuJoCo（`force`・`torque`） | mujoco_ros2_control | Isaac Sim | Webots（`TouchSensor` force-3d） | PyBullet |
+| | Gazebo (gz-sim and gz-sensors) | MuJoCo (`force`, `torque`) | mujoco_ros2_control | Isaac Sim | Webots (`TouchSensor` force-3d) | PyBullet |
 |---|---|---|---|---|---|---|
-| 真値 | 関節が伝える力（物理エンジンの値）を、センサの姿勢へ移す。センサは関節の上に置く | 印（site）の体が、関節を通して親に伝える力（`cfrc_int`） | MuJoCo の `force`・`torque` を 2 つ組にする | 関節に入ってくる 6 軸の力 | センサの当たり判定に、外から当たった接触の力の合計 | 関節の反力 |
-| 軸と向き | 軸は子・親・センサから選ぶ。向きは子から親（既定。値を反転する）か親から子 | 印の軸。子から親の向き | MuJoCo の値を 6 つとも反転する（親から子）。資料には書いていない | 資料に書いていない | センサの軸。力だけで、モーメントはない | 既定の軸は確かめられなかった |
-| 取り付けた先の重さ | 含む。ゼロ点合わせはない | 含む（接触や外から加えた力も含む）。ゼロ点合わせはない | 含む。ゼロ点合わせはない | 含む | 含まない（外からの接触だけ） | 含む |
-| ノイズ | 軸ごとのガウス。固定のずれ、時間で変わるずれ（1 次の Gauss-Markov）、量子化 | `noise` は書けるが、`mj_step` は使わない | `noise` を毎回の読み取りで足す（ガウスか一様）。種を指定できず、毎回違う値になる | 資料にない | 表の 3 列目でノイズの大きさ | なし |
-| 頭打ち | なし | `cutoff` で各軸を切る | MuJoCo と同じ | 関節の力にはない | 表で非線形と頭打ち | なし |
-| フィルタ・遅れ | なし | `nsample`・`delay`・`interval` の履歴と補間 | なし | なし | なし | なし |
-| 周期 | `update_rate` | 毎刻み、または `interval` | 制御の周期 | 物理の刻み（資料に書いていない） | 有効にするときの周期 | 毎刻み |
-| 出力 | `gz.msgs.Wrench` | `sensordata` の 3 つずつ | `force.x` … `torque.z` の 6 つの状態 | リンクごとの配列 | 3 つの値 | 関節ごとの 6 つ組 |
+| Truth | The force transmitted by the joint (physics engine value), moved to the sensor pose. The sensor is placed on a joint | The force that the site's body transmits to its parent through the joint (`cfrc_int`) | Pairs MuJoCo `force` and `torque` | The 6-axis force entering the joint | The sum of external contact forces hitting the sensor's collision shape | Joint reaction force |
+| Axes and direction | Axes selectable from child, parent, or sensor. Direction is child to parent (default; the value is negated) or parent to child | Site axes. Child to parent direction | Negates all 6 MuJoCo values (parent to child). Not documented | Not documented | Sensor axes. Force only, no moment | Default axes could not be confirmed |
+| Weight of what is attached beyond | Included. No tare | Included (also includes contact and externally applied forces). No tare | Included. No tare | Included | Not included (external contact only) | Included |
+| Noise | Gaussian per axis. Fixed bias, time-varying bias (1st-order Gauss-Markov), quantization | `noise` can be written, but `mj_step` does not use it | Adds `noise` at every read (Gaussian or uniform). The seed cannot be set, so values differ every run | Not documented | Noise magnitude in the 3rd column of the lookup table | None |
+| Saturation | None | `cutoff` clips each axis | Same as MuJoCo | None for joint forces | Nonlinearity and saturation via the lookup table | None |
+| Filter, delay | None | History and interpolation with `nsample`, `delay`, `interval` | None | None | None | None |
+| Period | `update_rate` | Every step, or `interval` | Control period | Physics step (not documented) | Period given when enabling | Every step |
+| Output | `gz.msgs.Wrench` | Groups of 3 in `sensordata` | 6 state interfaces `force.x` ... `torque.z` | Array per link | 3 values | 6-tuple per joint |
 
-気づいた点：
+Observations:
 
-- **Gazebo のモーメントの基準点：** SDFormat は「関節の原点まわり」と書きますが、gz-sim はセンサの原点まわりへ移します。その式では、関節の軸の位置とセンサの軸の力が混ざっており、センサが関節に対して回っていると値がずれる疑いがあります（試験では確かめていません）。
-- **向きの既定が食い違う：** Gazebo は、SDFormat の既定（子から親、反転する）と C++ の説明（親から子）が逆です。mujoco_ros2_control は、MuJoCo の値を黙って反転します。
-- **乱数の列が共有：** Gazebo は種を設定できます（`gz::math::Rand` の種、gz-sim のサーバの設定）。ただし乱数の列がプロセスに 1 本だけなので、センサの数や更新の順番が変わると値が変わります。固定のずれの符号は 50% の確率で裏返ります。mujoco_ros2_control は、センサごとに乱数を持ちますが、種を指定できず、毎回違う値になります。
-- **MuJoCo の制約：** 力覚センサには、親と工具の間に自分の体（関節なしでつなぐ）が要ります。サイトや体を伝わる種類のアクチュエータ、重力の補償、流体の力などは、`cfrc_int` にまだ集められていません。
-- **小さな誤り：** SDFormat の Ty の説明が「Y 軸まわりの力」、gz-sensors のヘッダがモーメントの単位を「ニュートン」と書いています。Webots の既定の表は値を 10 倍にします。
+- **Gazebo moment reference point:** SDFormat says "about the joint origin", but gz-sim moves it to be about the sensor origin. In that formula, the joint frame position and the force in sensor axes are mixed, so the value may be wrong when the sensor is rotated relative to the joint (not confirmed by a test).
+- **Default directions disagree:** In Gazebo, the SDFormat default (child to parent, negated) and the C++ description (parent to child) are opposite. mujoco_ros2_control silently negates the MuJoCo values.
+- **Shared random stream:** Gazebo lets you set the seed (the `gz::math::Rand` seed, the gz-sim server configuration). However, there is only one random stream per process, so values change when the number of sensors or the update order changes. The sign of the fixed bias flips with 50% probability. mujoco_ros2_control has a random generator per sensor, but the seed cannot be set, so values differ every run.
+- **MuJoCo constraints:** A force-torque sensor needs its own body (connected without a joint) between the parent and the tool. Some forces are not yet collected into `cfrc_int`, such as actuators that act through sites or bodies, gravity compensation, and fluid forces.
+- **Small errors:** The SDFormat description of Ty says "force about the Y axis", and the gz-sensors header gives the moment unit as "newtons". The default Webots lookup table multiplies values by 10.
 
-## 3. 実機
+## 3. Real devices
 
-| | ATI Mini45 | ATI Axia80 | Robotiq FT 300-S | OnRobot HEX-E QC | Bota SensONE（T15） | UR e シリーズ（手先） |
+| | ATI Mini45 | ATI Axia80 | Robotiq FT 300-S | OnRobot HEX-E QC | Bota SensONE (T15) | UR e-Series (end effector) |
 |---|---|---|---|---|---|---|
-| 測れる範囲（Fxy／Fz／Txy／Tz） | 145／290 N、5／5 N·m など 3 種の較正 | 500／900 N、20 N·m など 2 種の較正 | ±300 N、±30 N·m | 200／200 N、10／6.5 N·m | 500／1200 N、15／12 N·m | UR5e：50 N、10 N·m |
-| 過負荷 | 範囲の 5.7〜25.3 倍 | 5〜12.5 倍 | 500% | 500% | 絶対値（2500／4500 N など） | — |
-| ノイズ・分解能 | 分解能 1/16 N など（ノイズ 4 カウントを除いた値） | — | ノイズ 0.1 N、0.005 N·m（1σ、1 秒） | ノイズ 0.035／0.15 N、0.002／0.001 N·m（1σ、1 秒）。ノイズなしの分解能 0.2／0.8 N | ノイズなしの分解能 100／70 mN（100 Hz の 6σ の幅） | 精度（precision）3.5 N、0.2 N·m |
-| 正確さ | 公開していない | 2% FS より良い（個体ごとの値は較正の証明書） | 公開していない | 非線形 2% FS、ヒステリシス 2%、軸の干渉 5% | 2%、非線形 2% | 正確さ（accuracy）4.0 N、0.3 N·m |
-| ドリフト | — | 「ふつうにある」（数値なし）。暖機 30 分とこまめなゼロ点合わせ | 温度の補償 15〜35 ℃ | 数値なし。2〜3 か月ごとの自動の較正 | 1 時間あたり 100／500 mN、3 mN·m | — |
-| 出力の周期・遅れ | Net F/T：最大 7000 Hz、遅れ 500 µs、ローパス 5〜838 Hz | — | 100 Hz | — | 最大 3800 Hz | — |
-| ゼロ点合わせ・工具の重さ | ゼロ点合わせで工具の重さも消す | 同じ | 工具の重さ・重心の補償と値のリセット | — | 内蔵の IMU で重力・慣性の補償に使える | — |
+| Measurable range (Fxy / Fz / Txy / Tz) | 145 / 290 N, 5 / 5 N·m, and others; 3 calibrations | 500 / 900 N, 20 N·m, and others; 2 calibrations | ±300 N, ±30 N·m | 200 / 200 N, 10 / 6.5 N·m | 500 / 1200 N, 15 / 12 N·m | UR5e: 50 N, 10 N·m |
+| Overload | 5.7 to 25.3 times the range | 5 to 12.5 times | 500% | 500% | Absolute values (2500 / 4500 N, and others) | — |
+| Noise, resolution | Resolution 1/16 N and others (value excluding 4 counts of noise) | — | Noise 0.1 N, 0.005 N·m (1σ, 1 s) | Noise 0.035 / 0.15 N, 0.002 / 0.001 N·m (1σ, 1 s). Noise-free resolution 0.2 / 0.8 N | Noise-free resolution 100 / 70 mN (6σ peak-to-peak width at 100 Hz) | Precision 3.5 N, 0.2 N·m |
+| Accuracy | Not published | Better than 2% FS (per-unit values in the calibration certificate) | Not published | Nonlinearity 2% FS, hysteresis 2%, crosstalk 5% | 2%, nonlinearity 2% | Accuracy 4.0 N, 0.3 N·m |
+| Drift | — | "Normal" (no number). 30 min warm-up and frequent tare | Temperature compensation 15 to 35 °C | No number. Automatic calibration every 2 to 3 months | 100 / 500 mN, 3 mN·m per hour | — |
+| Output period, delay | Net F/T: up to 7000 Hz, delay 500 µs, low-pass 5 to 838 Hz | — | 100 Hz | — | Up to 3800 Hz | — |
+| Tare, tool weight | Tare also removes the tool weight | Same | Tool weight and center of gravity compensation, and value reset | — | Built-in IMU usable for gravity and inertia compensation | — |
 
-数値の出どころ（2026-11-11 に取得）：
+Sources of the numbers (retrieved 2026-11-11):
 
-| 機種 | 資料 |
+| Model | Source |
 |---|---|
-| ATI Mini45 | 製品ページ https://www.ati-ia.com/products/ft/ft_models.aspx?id=Mini45 |
-| ATI Axia80 | 製品ページ https://www.ati-ia.com/products/ft/ft_models.aspx?id=Axia80-M20 、説明書 9620-05-B https://www.ati-ia.com/app_content/Documents/9620-05-B-Axia80.pdf |
+| ATI Mini45 | Product page https://www.ati-ia.com/products/ft/ft_models.aspx?id=Mini45 |
+| ATI Axia80 | Product page https://www.ati-ia.com/products/ft/ft_models.aspx?id=Axia80-M20 , manual 9620-05-B https://www.ati-ia.com/app_content/Documents/9620-05-B-Axia80.pdf |
 | ATI Net F/T | https://ati-ia.com/products/ft/ft_SystemInterfaces.aspx |
-| Robotiq FT 300-S | 製品ページ https://robotiq.com/products/ft-300-force-torque-sensor 。ノイズの値は製品シート（画像の PDF）の検索結果の抜粋で、PDF 本体では確かめていない |
-| OnRobot HEX-E QC／HEX-H QC | データシート v1.5 https://onrobot.com/storage/datasheets/hex/datasheet_hex-e_h_qc_v1.5_en.pdf |
-| Bota SensONE Gen A | データシート https://ventionavatars.s3.amazonaws.com/uploads/part_document/file/1983/SensONE%2BGen%2BA%2BSeries%2BDatasheet.pdf |
-| UR e シリーズ | 2023 年 11 月のデータシート集 https://www.universal-robots.com/media/1829346/11_2023_collective_data-sheet.pdf |
-| KUKA LBR iiwa | 製品の冊子（関節トルクの正確さ）、独立の測定 https://www.frontiersin.org/articles/10.3389/frobt.2022.892916/full |
+| Robotiq FT 300-S | Product page https://robotiq.com/products/ft-300-force-torque-sensor . The noise values come from a search result excerpt of the product sheet (an image PDF) and were not confirmed in the PDF itself |
+| OnRobot HEX-E QC / HEX-H QC | Datasheet v1.5 https://onrobot.com/storage/datasheets/hex/datasheet_hex-e_h_qc_v1.5_en.pdf |
+| Bota SensONE Gen A | Datasheet https://ventionavatars.s3.amazonaws.com/uploads/part_document/file/1983/SensONE%2BGen%2BA%2BSeries%2BDatasheet.pdf |
+| UR e-Series | November 2023 collective datasheet https://www.universal-robots.com/media/1829346/11_2023_collective_data-sheet.pdf |
+| KUKA LBR iiwa | Product brochure (joint torque accuracy), independent measurement https://www.frontiersin.org/articles/10.3389/frobt.2022.892916/full |
 
-関節トルクから手先の力を推定する協働ロボット（KUKA LBR iiwa）は、関節ごとのトルクの正確さ（最大トルクの ±2%）だけを公開しています。独立の測定では、0〜20 N の荷重で約 2 N の誤差があり、特異点の近くでは誤差がとても大きくなりました。
+Collaborative robots that estimate the end-effector force from joint torques (KUKA LBR iiwa) publish only the per-joint torque accuracy (±2% of the maximum torque). An independent measurement found an error of about 2 N for loads of 0 to 20 N, and very large errors near singularities.
 
-### データシートに出てくる項目
+### Items that appear in datasheets
 
-| 項目 | どこに出てくるか | 書き方 |
+| Item | Where it appears | How it is written |
 |---|---|---|
-| 測れる範囲 | すべて | 軸の組（Fxy、Fz、Txy、Tz）ごと。1 台に複数の較正がある。複数の軸に同時に力がかかると範囲が狭くなる（OnRobot、Bota、ATI） |
-| 過負荷 | 専用のセンサすべて | % か倍率、または絶対値 |
-| ノイズ・分解能 | 専用のセンサすべて。ただし定義がばらばら | 1 秒間の 1σ（Robotiq、OnRobot）、100 Hz の 6σ の幅（Bota）、ノイズのカウントを除いた値（ATI） |
-| 正確さ | ほとんど | % FS、絶対値（UR）、最大トルクの %（KUKA） |
-| 出力の周期 | ほとんど | Hz（100 Hz〜7 kHz）。遅れは ATI だけ |
-| ゼロ点合わせと工具の重さの補償 | 説明書にはすべて | 必要な操作として書かれる。ドリフトもこれで消す前提 |
-| 非線形・ヒステリシス | 一部 | % FS |
-| 軸の干渉 | OnRobot だけ | % |
-| ドリフト | まれ | 1 時間あたり（Bota）。1 ℃ あたりの値はどこにもない |
-| たわみ | 一部 | 定格のときの mm と度 |
+| Measurable range | All | Per axis group (Fxy, Fz, Txy, Tz). One device can have several calibrations. The range narrows when forces act on several axes at once (OnRobot, Bota, ATI) |
+| Overload | All dedicated sensors | % or a factor, or an absolute value |
+| Noise, resolution | All dedicated sensors, but the definitions vary | 1σ over 1 second (Robotiq, OnRobot), 6σ peak-to-peak width at 100 Hz (Bota), value excluding noise counts (ATI) |
+| Accuracy | Most | % FS, absolute value (UR), % of maximum torque (KUKA) |
+| Output period | Most | Hz (100 Hz to 7 kHz). Delay only for ATI |
+| Tare and tool weight compensation | All manuals | Described as a required operation. Drift is also assumed to be removed this way |
+| Nonlinearity, hysteresis | Some | % FS |
+| Crosstalk | OnRobot only | % |
+| Drift | Rare | Per hour (Bota). No value per °C anywhere |
+| Deflection | Some | mm and degrees at the rated load |
 
-## 4. 言えること
+## 4. Findings
 
-- **ゼロ点合わせがどこにもない：** どのシミュレータにもありません。実機では、工具の重さもドリフトも、ゼロ点合わせで消すのが前提です。
-- **向き・軸・基準点の決まりがあいまい：** 実装ごとに向きが逆だったり、資料と実装が違ったりします。
-- **誤差のモデルは Gazebo が一番広いが、乱数の列が共有：** 軸ごとのノイズ、固定のずれ、時間で変わるずれ、量子化を持ち、種も設定できます。ただし乱数の列がプロセスに 1 本なので、センサを足したり更新の順番が変わったりすると、同じ種でも値が変わります。
-- **軸の干渉、過負荷、測る周期と遅れ、ドリフトの速さ：** データシートには出てきますが、シミュレータでは、ほぼ扱われていません。
-- **ノイズの定義を換算する必要がある：** 1σ、6σ の幅、カウントと、書き方がばらばらです。
-- **関節トルクからの推定は、手先のセンサとは性質が違う：** 誤差が姿勢（ヤコビアンの条件）で大きく変わります。
+- **No simulator has tare:** None of the simulators has it. On real devices, both the tool weight and drift are assumed to be removed by tare.
+- **Conventions for direction, axes, and reference point are unclear:** The direction is reversed in some implementations, and documentation and implementation differ in others.
+- **Gazebo has the widest error model, but the random stream is shared:** It has per-axis noise, fixed bias, time-varying bias, and quantization, and the seed can be set. However, there is one random stream per process, so adding sensors or changing the update order changes the values even with the same seed.
+- **Crosstalk, overload, sample period and delay, drift rate:** These appear in datasheets but are hardly handled by simulators.
+- **Noise definitions must be converted:** They are written in different ways: 1σ, 6σ peak-to-peak width, counts.
+- **Estimation from joint torques behaves differently from an end-effector sensor:** The error changes strongly with the posture (the condition of the Jacobian).
 
-## 5. 口に取り入れること（案）
+## 5. What to adopt in the interface (proposal)
 
-| 項目 | 案 | 理由 |
+| Item | Proposal | Reason |
 |---|---|---|
-| 真値 | ホストが、センサの位置の 6 軸の力をセンサの軸で渡す。向き（どちらがどちらに及ぼす力か）とモーメントの基準点（センサの原点）を口で決める | 実装ごとにばらばらなので、口で一つに決める |
-| 工具の重さ | 測った値は、工具の重さと慣性を含む。差し引くのはセンサの外（制御器やホスト） | 実機のセンサと同じ。センサの中で消すと実機と違う値になる |
-| ゼロ点合わせ | センサの操作として口に入れる。決めた時間の出力の平均を覚えて引く。ドリフトは消えずに進み続ける | どのシミュレータにもないが、実機では毎日使う。1 回の値を覚えると、そのノイズが固定のずれとして残る |
-| 設定の形 | 軸の組（Fxy、Fz、Txy、Tz）ごとに書く。値に単位の印（% FS、絶対値）を付けて、データシートからそのまま写せる | データシートの書き方に合わせる |
-| ノイズ | 軸ごとの σ。データシートの定義（1σ、6σ の幅）と、その値を測った出力の周期・帯域を書けて、アダプタの周期と帯域に換算する | 定義がばらばらなうえ、同じ σ でも周期と帯域が違えば別のノイズになる |
-| 正確さ・軸の干渉 | 6×6 の較正の行列で表す。各軸を測れる範囲で割った無次元の値に掛ける。軸の干渉と目盛りの誤差は、作るときに種から 1 台ずつ引く（正確さの範囲の中） | 1 台ずつ違う個体を再現でき、何度やっても同じ個体になる。データシートの % FS をそのまま使える |
-| 非線形 | 行列とは別の段にする（軸ごとの曲がり） | 非線形を線形の目盛りの誤差に置き換えると、別の誤差になる |
-| ドリフト | 1 時間あたりの速さ（ランダムウォークか 1 次の Gauss-Markov） | Bota の書き方と、Gazebo の時間で変わるずれの両方を表せる |
-| 分解能・頭打ち・過負荷 | 分解能で量子化。範囲の外は頭打ちの印。過負荷は、誤差を足す前の物理の荷重で判定して別の印 | データシートの値をそのまま使える。過負荷は物の壊れ方なので、測った値ではなく、かかった荷重で決まる |
-| 周期・遅れ・フィルタ | 測る周期、遅れ、ローパス（遮断周波数）を設定できる | ATI のように、周期と遅れとフィルタは実機の大事な性質 |
-| 温度・ヒステリシス・過負荷のあとのずれ | 能力の表で入り切りする。最初は持たなくてよい | データシートにほとんど数値がない |
-| 種 | 今のセンサと同じ決まり（種、機体、センサの名前から作る） | 何台並べても、何回やり直しても、決めたとおりに再現できる |
-| 関節トルク | 手先のセンサとは別の口にする | 誤差の性質が違う（関節ごとの値、姿勢で変わる手先の誤差） |
+| Truth | The host passes the 6-axis force at the sensor location in sensor axes. The interface defines the direction (which part applies the force to which) and the moment reference point (the sensor origin) | Implementations differ, so the interface defines one convention |
+| Tool weight | The measured value includes the tool weight and inertia. Subtraction is done outside the sensor (controller or host) | Same as real sensors. Removing it inside the sensor would give values different from real devices |
+| Tare | Included in the interface as a sensor operation. Stores and subtracts the average output over a set time. Drift is not removed and keeps progressing | No simulator has it, but real devices use it every day. Storing a single value leaves its noise as a fixed offset |
+| Configuration form | Written per axis group (Fxy, Fz, Txy, Tz). Values carry a unit suffix (% FS, absolute value) so they can be copied directly from the datasheet | Matches how datasheets are written |
+| Noise | σ per axis. The datasheet definition (1σ, 6σ peak-to-peak width) and the output period and bandwidth at which it was measured can be written, and are converted to the adapter's period and bandwidth | Definitions vary, and the same σ is different noise at a different period and bandwidth |
+| Accuracy, crosstalk | Represented by a 6×6 calibration matrix, multiplied by the dimensionless values obtained by dividing each axis by its measurable range. Crosstalk and scale error are drawn per unit from the seed at creation (within the accuracy range) | Reproduces per-unit differences, and gives the same unit every run. The datasheet % FS can be used directly |
+| Nonlinearity | A stage separate from the matrix (a curve per axis) | Replacing nonlinearity with a linear scale error gives a different error |
+| Drift | Rate per hour (random walk or 1st-order Gauss-Markov) | Can represent both the Bota notation and the Gazebo time-varying bias |
+| Resolution, saturation, overload | Quantize with the resolution. Outside the range, set the saturation flag. Overload is checked on the physical load before errors are added, with a separate flag | Datasheet values can be used directly. Overload is about how the device breaks, so it depends on the applied load, not on the measured value |
+| Period, delay, filter | Sample period, delay, and low-pass (cutoff frequency) are configurable | As with ATI, period, delay, and filter are important properties of real devices |
+| Temperature, hysteresis, offset after overload | Switched on and off via the capability table. Not required at first | Datasheets give almost no numbers |
+| Seed | Same rule as the existing sensors (created from the seed, vehicle, and sensor name) | Reproducible as defined, however many units are placed and however many times it is rerun |
+| Joint torque | A separate interface from end-effector sensors | The errors behave differently (per-joint values, end-effector error that changes with posture) |

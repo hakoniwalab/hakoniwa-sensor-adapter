@@ -1,84 +1,84 @@
-# 距離と画像のセンサ：Gazebo・Project AirSim・箱庭の比較（設計の下調べ）
+# Range and image sensors: comparison of Gazebo, Project AirSim, and Hakoniwa (design survey)
 
-距離計、2D LiDAR、3D LiDAR、深度カメラ、RGB カメラの口を決めるための下調べです。
-Gazebo と Project AirSim のソースを読み、設定、測り方、出力を比べました。箱庭の手持ち（hakoniwa-mujoco-robots、hakoniwa-unity-drone）も並べます。
+This is a survey for defining the interfaces for rangefinders, 2D LiDAR, 3D LiDAR, depth cameras, and RGB cameras.
+We read the Gazebo and Project AirSim source code and compared configuration, measurement method, and output. Existing Hakoniwa implementations (hakoniwa-mujoco-robots, hakoniwa-unity-drone) are also listed.
 
-調べた版：
+Versions surveyed:
 
-- Gazebo：SDFormat 1.12、gz-sensors 10.2.0、gz-sim（Jetty）
-- Project AirSim：コミット `92032a6c`（core_sim と Unreal のプラグイン）
+- Gazebo: SDFormat 1.12, gz-sensors 10.2.0, gz-sim (Jetty)
+- Project AirSim: commit `92032a6c` (core_sim and the Unreal plugin)
 
-## 1. 先に決めたこと
+## 1. Decisions made first
 
-- 単位はメートル（角度はラジアン）にそろえます。データシートの値（ミリメートル、距離の %）は、設定を読むところで換算します。
-- 口は ROS に依存しません。データ型は ROS の `Range`・`LaserScan`・`PointCloud2`・`Image`・`CameraInfo` に似せ、名前と意味をそろえます。
+- Units are meters (angles in radians). Datasheet values (millimeters, % of distance) are converted where the configuration is read.
+- The interfaces do not depend on ROS. The data types resemble ROS `Range`, `LaserScan`, `PointCloud2`, `Image`, and `CameraInfo`, with matching names and meanings.
 
-## 2. 距離計（1 本のレイ）
+## 2. Rangefinder (single ray)
 
-| | Gazebo | Project AirSim | 箱庭の手持ち（mujoco-robots の ultrasonic） |
+| | Gazebo | Project AirSim | Existing Hakoniwa (mujoco-robots ultrasonic) |
 |---|---|---|---|
-| 専用のセンサ | なし。sonar の SDF の定義はあるが、実装がない。LiDAR を 1 本にして使う | `distance-sensor` | `ultrasonic` |
-| 測り方 | LiDAR と同じ | Unreal の当たり判定に 1 本のレイ（前向き） | 円錐の中に何本かのレイを飛ばし、前向きに直した距離で一番近いものを取る |
-| 設定 | LiDAR と同じ。GPU の LiDAR を 1 本にすると、角度の刻みが 0 で割られる | `min-distance`（MAVLink にだけ使う）、`max-distance`、`report-frequency` | 測れる範囲、距離ごとの精度（σ、量子化）、円錐の角度と本数、超音波か赤外か |
-| 当たらないとき | LiDAR と同じ（+inf） | 決めていない（既定の値のまま） | 測れる範囲の最大 |
-| ノイズ | LiDAR と同じ | なし | 距離ごとの σ と量子化 |
-| 出力 | LiDAR と同じ | 距離（float）と世界の姿勢（NED） | `Range`（距離と分散） |
-| 気づいた点 | 気圧で高さを測る「altimeter」は、距離計ではない（最初の高さからの差） | **距離がセンチメートルのまま出る**（Unreal の単位を換算していない） | 単位はメートル |
+| Dedicated sensor | None. There is an SDF definition for sonar, but no implementation. A LiDAR with one ray is used | `distance-sensor` | `ultrasonic` |
+| Measurement method | Same as LiDAR | One ray (forward) against Unreal collision | Casts several rays inside a cone and takes the closest distance after converting to the forward direction |
+| Configuration | Same as LiDAR. A GPU LiDAR with one ray divides the angle step by 0 | `min-distance` (used only for MAVLink), `max-distance`, `report-frequency` | Measurable range, accuracy per distance (σ, quantization), cone angle and ray count, ultrasonic or infrared |
+| No hit | Same as LiDAR (+inf) | Not defined (stays at the default value) | Maximum of the measurable range |
+| Noise | Same as LiDAR | None | σ per distance and quantization |
+| Output | Same as LiDAR | Distance (float) and world pose (NED) | `Range` (distance and variance) |
+| Observations | The "altimeter" that measures height with pressure is not a rangefinder (it is the difference from the initial height) | **The distance is output in centimeters** (the Unreal unit is not converted) | Unit is meters |
 
-## 3. 2D・3D LiDAR
+## 3. 2D and 3D LiDAR
 
-| | Gazebo（`lidar`：CPU、`gpu_lidar`：GPU） | Project AirSim（`lidar`） | 箱庭の手持ち |
+| | Gazebo (`lidar`: CPU, `gpu_lidar`: GPU) | Project AirSim (`lidar`) | Existing Hakoniwa |
 |---|---|---|---|
-| 設定の形 | `scan/horizontal`・`scan/vertical` の本数・分解能・最小と最大の角度、`range` の最小・最大・分解能、`noise` | 種類（`lidar-type`：円筒、GPU、深度、ロゼット、Livox の 2 機種）、チャンネル数、毎秒の点数、毎秒の回転数、上下・左右の視野、レーザーの間隔 | 2D（mujoco-robots）：データシートの範囲、距離ごとの精度、角度の範囲と分解能、走査の周波数。3D（Unity）：AirSim と同じ形 |
-| 測る世界 | CPU：物理の当たり判定。GPU：見た目の形 | Unreal の当たり判定、または深度の描画 | 2D：MuJoCo の当たり判定。3D：Unity の当たり判定 |
-| 1 回の走査の時刻 | 1 つの姿勢で全部を測る。点ごとの時刻はない | 1 刻みの中は同じ姿勢。点は刻みをまたいでためる。点ごとの時刻はない | 一瞬で全部を測る |
-| 機体の傾き | 走査はセンサの姿勢に沿う | センサの姿勢に沿う | 2D：**常に水平**（ヨーだけを使う）。3D：センサの姿勢に沿う |
-| 当たらないとき | +inf、最短より近いと −inf（REP 117 の決まり）。NaN は最大にする | 点を捨てるか、決めた値を入れる（設定） | 最大の距離 |
-| ノイズ | 1 本ごとのガウス。有限の値にだけ足して、範囲に切り詰める。量子化はできない（`range/resolution` はどこにも効かない）。時間で変わるずれは動かない | なし | 2D：距離ごとの σ・距離の %、量子化。3D：なし |
-| 強度 | CPU：常に 0。GPU：見た目に付けた反射の値 | 入射角と距離から決まった式で作る（材質によらない） | 2D：0。3D：常に 1 |
-| 点ごとのほかの情報 | リング（縦の段の番号） | 塗り分けの番号、レーザーの番号、方位・仰角・距離 | なし |
-| 出力 | `LaserScan`（縦横の並び、世界の姿勢つき）、`PointCloudPacked`（x, y, z, 強度, リング） | 点群（NED、センサの軸に直したもの）と世界の姿勢 | 2D：`LaserScan`。3D：`PointCloud2`（FLU）、姿勢の PDU、取得のサービス |
-| 気づいた点 | 購読する相手がいないと測らない | 方位・仰角・距離の単位が、当たったときと当たらないときで違う（cm と度が混ざる）。GPU の LiDAR は回転の設定を使わない | 2D の距離はミリメートルで書く |
+| Configuration form | `scan/horizontal` and `scan/vertical` with ray count, resolution, minimum and maximum angle; `range` minimum, maximum, resolution; `noise` | Type (`lidar-type`: cylindrical, GPU, depth, rosette, 2 Livox models), channel count, points per second, rotations per second, vertical and horizontal field of view, laser spacing | 2D (mujoco-robots): datasheet range, accuracy per distance, angle range and resolution, scan frequency. 3D (Unity): same form as AirSim |
+| World measured | CPU: physics collision. GPU: visual shapes | Unreal collision, or depth rendering | 2D: MuJoCo collision. 3D: Unity collision |
+| Timing within one scan | Everything is measured at one pose. No per-point time | Same pose within one step. Points accumulate across steps. No per-point time | Everything is measured in one instant |
+| Vehicle tilt | The scan follows the sensor orientation | Follows the sensor orientation | 2D: **always horizontal** (only yaw is used). 3D: follows the sensor orientation |
+| No hit | +inf; closer than the minimum gives −inf (the REP 117 rule). NaN becomes the maximum | Drop the point or insert a set value (configurable) | Maximum distance |
+| Noise | Gaussian per ray. Added only to finite values, then clamped to the range. No quantization (`range/resolution` has no effect anywhere). The time-varying bias does not move | None | 2D: σ per distance, % of distance, quantization. 3D: none |
+| Intensity | CPU: always 0. GPU: the reflectance assigned to the visuals | Created by a fixed formula from incidence angle and distance (independent of material) | 2D: 0. 3D: always 1 |
+| Other per-point information | Ring (vertical layer index) | Segmentation index, laser index, azimuth, elevation, distance | None |
+| Output | `LaserScan` (vertical and horizontal grid, with world pose), `PointCloudPacked` (x, y, z, intensity, ring) | Point cloud (NED, converted to sensor axes) and world pose | 2D: `LaserScan`. 3D: `PointCloud2` (FLU), pose PDU, retrieval service |
+| Observations | Does not measure when there is no subscriber | The units of azimuth, elevation, and distance differ between hit and no hit (cm and degrees are mixed). The GPU LiDAR does not use the rotation settings | 2D distances are written in millimeters |
 
-## 4. 深度カメラ
+## 4. Depth camera
 
-| | Gazebo（`depth_camera`、`rgbd_camera`） | Project AirSim（画像の種類 `DepthPlanar`・`DepthPerspective`） | 箱庭の手持ち（mujoco-robots） |
+| | Gazebo (`depth_camera`, `rgbd_camera`) | Project AirSim (image types `DepthPlanar`, `DepthPerspective`) | Existing Hakoniwa (mujoco-robots) |
 |---|---|---|---|
-| 測り方 | GPU で描いた深度 | Unreal で描いた深度 | MuJoCo の標準の描画で深度を読み、メートルに直す |
-| 深度の意味 | 平面の距離か、レイに沿った距離かは確かめられなかった | 平面の距離（カメラの面から）と、レイに沿った距離（カメラの点から）の 2 種類 | 描画の深度（平面の距離） |
-| 範囲の外 | 遠すぎると +inf、近すぎると −inf | 空は +inf、範囲の上限はない | near と far で切る |
-| 型 | 32 ビットの浮動小数、メートル | 16 ビットの浮動小数、メートル | 32 ビットの浮動小数、メートル |
-| ノイズ | 画素ごとのガウス（GPU） | 画面の効果としてのノイズ（種はない） | ガウス |
-| 気づいた点 | `depth_camera/clip` は深度カメラでは読まれない（`rgbd_camera` だけが使う） | 既定の設定（圧縮あり）では、深度の画像が空になる | 画面のない環境で動くかは確かめていない |
+| Measurement method | Depth rendered on the GPU | Depth rendered by Unreal | Reads depth from MuJoCo's standard rendering and converts it to meters |
+| Meaning of depth | Could not confirm whether it is planar distance or distance along the ray | Two kinds: planar distance (from the camera plane) and distance along the ray (from the camera point) | Rendering depth (planar distance) |
+| Out of range | Too far gives +inf, too close gives −inf | Sky is +inf; no upper range limit | Clipped at near and far |
+| Type | 32-bit float, meters | 16-bit float, meters | 32-bit float, meters |
+| Noise | Gaussian per pixel (GPU) | Noise as a screen effect (no seed) | Gaussian |
+| Observations | `depth_camera/clip` is not read by the depth camera (only `rgbd_camera` uses it) | With the default settings (compression on), the depth image is empty | Not confirmed whether it runs in a headless environment |
 
-## 5. RGB カメラ
+## 5. RGB camera
 
-| | Gazebo（`camera`） | Project AirSim（`Scene`） | 箱庭の手持ち（mujoco-robots） |
+| | Gazebo (`camera`) | Project AirSim (`Scene`) | Existing Hakoniwa (mujoco-robots) |
 |---|---|---|---|
-| 設定 | 視野、画像の大きさと形式、near・far、歪み（Brown）、レンズ（魚眼など、内部の値）、ノイズ | 画像の大きさ、視野（度）、露出、モーションブラー、ガンマ、被写界深度、色収差、ノイズの効果 | 視野、画像の大きさと形式、near・far、ノイズ |
-| 出力 | `Image`、`CameraInfo`（K、歪み、P） | 画像（BGR か PNG）、CameraInfo（歪みなし）、世界の姿勢 | `Image` |
-| 光学の軸 | 光学の軸（z が前）の名前の設定はあるが、どこでも使われていない。データはセンサの軸（x が前）のまま | 光学の軸への変換はない | MJCF のカメラ |
-| 気づいた点 | 使える画素の形式が少ない（R8G8B8、L8、L16、Bayer） | 視野を書かないと、CameraInfo の焦点距離が NaN になる | |
+| Configuration | Field of view, image size and format, near and far, distortion (Brown), lens (fisheye and others, intrinsics), noise | Image size, field of view (degrees), exposure, motion blur, gamma, depth of field, chromatic aberration, noise effect | Field of view, image size and format, near and far, noise |
+| Output | `Image`, `CameraInfo` (K, distortion, P) | Image (BGR or PNG), CameraInfo (no distortion), world pose | `Image` |
+| Optical frame | There is a setting for the optical frame name (z forward), but it is not used anywhere. The data stays in sensor axes (x forward) | No conversion to the optical frame | MJCF camera |
+| Observations | Few pixel formats are supported (R8G8B8, L8, L16, Bayer) | If the field of view is not written, the CameraInfo focal length becomes NaN | |
 
-## 6. 3 つに共通して言えること
+## 6. Findings common to all three
 
-- **点ごとの時刻がない：** どれも、1 回の走査や 1 枚の画像を、1 つの姿勢・1 つの時刻で測ります。回転しながら測る LiDAR の歪みは、どれも再現しません。
-- **種を指定して同じ値にする仕組みが弱い：** Gazebo は乱数がプロセスに 1 つ、Project AirSim の距離と画像のセンサにはノイズ自体がありません。
-- **距離計とデータシートの精度は、箱庭の手持ちが一番そろっている：** 円錐のモデル、距離ごとの精度、量子化は、Gazebo にも Project AirSim にもありません。
-- **単位と軸の決まりがあいまい：** Project AirSim の距離計はセンチメートル、Gazebo のカメラは光学の軸の設定を使いません。
+- **No per-point time:** All of them measure one scan or one image at one pose and one time. None reproduces the distortion of a LiDAR that measures while rotating.
+- **Weak support for reproducible values with a given seed:** Gazebo has one random generator per process. Project AirSim range and image sensors have no noise at all.
+- **The existing Hakoniwa implementation matches rangefinder datasheet accuracy best:** The cone model, accuracy per distance, and quantization are in neither Gazebo nor Project AirSim.
+- **Unit and axis conventions are unclear:** The Project AirSim rangefinder outputs centimeters, and the Gazebo camera does not use its optical frame setting.
 
-## 7. 口に取り入れること（案）
+## 7. What to adopt in the interfaces (proposal)
 
-| 項目 | 案 | 理由 |
+| Item | Proposal | Reason |
 |---|---|---|
-| 測る世界 | 物理の当たり判定（Gazebo の CPU の LiDAR と同じ） | 見た目は安く、当たり判定は実物の大きさで作る、という箱庭の決まりと合う |
-| 設定の形 | Gazebo の `scan`・`range`・`noise` の形を土台にする。AirSim の名前（チャンネル数、毎秒の点数、回転数、視野）との対応表を付ける。データシートの距離ごとの精度（mujoco-robots の形）も書ける | SDF に慣れた人と AirSim の人の両方が、そのまま持ってこられる |
-| 当たらないとき | REP 117 の決まり（遠すぎ +inf、近すぎ −inf）を既定にする。最大の距離を入れる形も選べる | Gazebo と ROS の決まりに合わせる |
-| 分解能・量子化 | 実際に効かせる（Gazebo では効かない） | データシートの値をそのまま使える |
-| 機体の傾き | センサの姿勢をまるごと使う | ドローンは傾いて飛ぶ |
-| 点ごとの時刻 | 持てるようにする。回転しながら測る歪みは、能力の表で入り切りできる | どれも持っていない。速く飛ぶドローンでは効く |
-| 種 | 今の 5 センサと同じ決まり（種、機体、センサの名前から作る） | 何台並べても、何回やり直しても、決めたとおりに再現できる |
-| 強度・点ごとの情報 | 強度は能力の表で宣言（最初は 0 でもよい）。当たった物の番号は持てるようにする | 塗り分けや学習の正解に使える |
-| 深度の意味 | 平面の距離とレイに沿った距離を、設定ではっきり選ぶ | Project AirSim は 2 種類、Gazebo はあいまい |
-| カメラの軸 | 光学の軸（z が前、x が右、y が下）を口ではっきり決め、`CameraInfo`（K、歪み、P）を必ず出す | Gazebo も Project AirSim も、ここがあいまい |
-| 距離計 | 円錐のモデル（mujoco-robots の形）を土台にし、超音波と赤外とレーザーを区別する | Gazebo にも Project AirSim にも、ちゃんとしたものがない |
+| World measured | Physics collision (same as the Gazebo CPU LiDAR) | Matches the Hakoniwa rule: cheap visuals, collision shapes at real-object size |
+| Configuration form | Base it on the Gazebo `scan`, `range`, and `noise` form. Provide a mapping table to the AirSim names (channel count, points per second, rotation rate, field of view). Datasheet accuracy per distance (the mujoco-robots form) can also be written | Both SDF users and AirSim users can bring their settings as they are |
+| No hit | Default to the REP 117 rule (too far +inf, too close −inf). Inserting the maximum distance can also be selected | Matches Gazebo and ROS conventions |
+| Resolution, quantization | Actually applied (not effective in Gazebo) | Datasheet values can be used directly |
+| Vehicle tilt | Use the full sensor orientation | Drones fly tilted |
+| Per-point time | Supported. Distortion from measuring while rotating can be switched on and off in the capability table | None has it. It matters for fast-flying drones |
+| Seed | Same rule as the existing 5 sensors (created from the seed, vehicle, and sensor name) | Reproducible as defined, however many units are placed and however many times it is rerun |
+| Intensity, per-point information | Intensity is declared in the capability table (0 is acceptable at first). The index of the hit object can be included | Usable for segmentation and as ground truth for learning |
+| Meaning of depth | Select planar distance or distance along the ray explicitly in the configuration | Project AirSim has two kinds; Gazebo is unclear |
+| Camera axes | The interface explicitly defines the optical frame (z forward, x right, y down) and always outputs `CameraInfo` (K, distortion, P) | Both Gazebo and Project AirSim are unclear here |
+| Rangefinder | Base it on the cone model (the mujoco-robots form), and distinguish ultrasonic, infrared, and laser | Neither Gazebo nor Project AirSim has a proper one |

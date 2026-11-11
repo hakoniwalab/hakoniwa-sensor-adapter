@@ -1,25 +1,25 @@
-# 軸 3：再現性（2026-11-01）
+# Axis 3: repeatability (2026-11-01)
 
-同じ種で、同じ値の並びになるかを確かめました。IMU（ジャイロのノイズ・起動時のずれ・ゆっくり変わるずれ）で、止まった状態の最初の 500 個の値を比べています。
+We checked whether the same seed gives the same value sequence. We compare the first 500 values in a stationary state for the IMU (gyro noise, turn-on bias, slowly varying bias).
 
-測り方：[ドローンのセンサの結果](README.md) の「測り方」のとおり。
+Method: as in "Method" in [Drone sensor results](README.md).
 
-| 場面 | 箱庭 | Gazebo | Project AirSim（core_sim） |
+| Case | Hakoniwa | Gazebo | Project AirSim (core_sim) |
 |---|---|---|---|
-| 同じインスタンスをリセットしたあと | 同じ | **違う**（種を入れ直さないため。下の説明） | 同じ |
-| 同じ種で作り直したインスタンス | 同じ | 同じ | 同じ |
-| ほかのセンサを一緒に動かしたとき | 同じ | **違う** | 同じ |
-| ほかのセンサを途中でリセットしたとき | 同じ | **違う** | 同じ |
-| 2 つのインスタンスを 2 つのスレッドで同時に動かしたとき | 同じ | **違う** | 同じ |
-| 同じ PC の 2 つのプロセスで気圧計を動かしたとき | （該当なし） | 混ざらない（直したあと。直す前は混ざった） | （通信を使わないので、混ざらない） |
-| 別の OS | 確かめていない（macOS だけで測った） | 確かめていない | 確かめていない |
+| Same instance after reset | Same | **Different** (the seed is not set again; see below) | Same |
+| Instance recreated with the same seed | Same | Same | Same |
+| Running together with other sensors | Same | **Different** | Same |
+| Resetting another sensor midway | Same | **Different** | Same |
+| Two instances run at the same time on two threads | Same | **Different** | Same |
+| Barometers run in two processes on the same PC | (not applicable) | Not mixed (after the fix; mixed before the fix) | (no transport is used, so not mixed) |
+| Different OS | Not checked (measured on macOS only) | Not checked | Not checked |
 
-## 説明
+## Explanation
 
-- **Project AirSim（core_sim）**：乱数の生成器をインスタンスごとに持ち、決まった種（1・2・3、気圧は 42）で始めます。ほかのセンサやスレッドの影響を受けません。ただし、ホストの種は使わないので、種を変えても値の並びは変わりません。同じ種の機体を何台並べても、同じノイズになります。
+- **Project AirSim (core_sim)**: Each instance has its own random number generator, started with a fixed seed (1, 2, 3; 42 for the barometer). It is not affected by other sensors or threads. However, it does not use the host seed, so changing the seed does not change the value sequence. Any number of vehicles side by side get the same noise.
 
-- **箱庭**：乱数の列を、センサごと・特性ごとに、種・機体の名前と番号・センサの名前から作ります。ほかのセンサやスレッドの影響を受けません。
-- **Gazebo**：乱数がプロセスに 1 つです（`gz::math::Rand`）。ほかのセンサが乱数を引くと、順番がずれます。スレッドから同時に引くと、取り合いになります。
-  - Gazebo のアダプタは、作るときにだけ種を入れます。リセットのたびに入れ直すと、同じプロセスのほかのセンサの乱数の列までやり直しになるからです（最初の測定のあとに直しました）。そのかわり、リセットのあとは、作った直後と同じ値の並びにはなりません。
-  - ほかのセンサを作ると、そのセンサの種が入るので、先に作ったセンサの並びも変わります（「ほかのセンサを途中でリセットしたとき」が違うのは、このため）。
-- **同じ PC の 2 つのプロセス**：高さ 0 m と 3000 m の気圧計を、別々のプロセスで同時に動かしました。最初の測定では、高さは一定なのに、どちらのプロセスでも気圧が 31,204 Pa 跳びました（0 m と 3000 m の気圧の差）。Gazebo のアダプタは気圧の値を通信で受け取りますが、通信の名前がプロセスの中だけで決まっていて、別のプロセスと同じ名前になり、相手の値を受け取っていました。名前にプロセスの番号を入れるように直し、跳びは 0 になりました。
+- **Hakoniwa**: The random stream is built per sensor and per property from the seed, the vehicle name and index, and the sensor name. It is not affected by other sensors or threads.
+- **Gazebo**: There is one random number generator per process (`gz::math::Rand`). When another sensor draws a random number, the order shifts. Drawing from threads at the same time causes contention.
+  - The Gazebo adapter sets the seed only at creation. Setting it again at every reset would restart the random sequence of the other sensors in the same process too (this was fixed after the first measurement). In exchange, after a reset the value sequence is not the same as right after creation.
+  - Creating another sensor sets that sensor's seed, so the sequence of a sensor created earlier also changes (this is why "Resetting another sensor midway" differs).
+- **Two processes on the same PC**: We ran barometers at heights 0 m and 3000 m in separate processes at the same time. In the first measurement, although the heights were constant, the pressure in both processes jumped by 31,204 Pa (the pressure difference between 0 m and 3000 m). The Gazebo adapter receives the barometer value over transport, but the transport name was decided only within the process, so it matched the name in the other process and the adapter received the other process's values. The name now includes the process ID, and the jump is 0.

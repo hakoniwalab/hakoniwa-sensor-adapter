@@ -1,167 +1,167 @@
-# IMU センサアダプタの口（設計）
+# IMU sensor adapter interface (design)
 
-箱庭ドローン PRO（ホスト）と外のセンサの実装（アダプタ）の間で、IMU（ジャイロと加速度）の値をやりとりする約束を決めます。
-アダプタは共有ライブラリ（.so / .dylib / .dll）として作り、ホストが実行時に読み込みます。
+This document defines the contract for exchanging IMU (gyroscope and accelerometer) values between Hakoniwa Drone PRO (the host) and an external sensor implementation (the adapter).
+The adapter is built as a shared library (.so / .dylib / .dll), and the host loads it at run time.
 
-この口は、**箱庭ドローン PRO の都合に合わせて**決めます。外の実装（Gazebo の gz-sensors など）は、この口に合わせてアダプタの中で包みます。持っていない機能は、能力の表で宣言します。
+This interface is defined **to fit the needs of Hakoniwa Drone PRO**. External implementations (such as Gazebo gz-sensors) are wrapped inside the adapter to fit this interface. Features an adapter does not have are declared in the capability table.
 
-## 1. 目的と範囲
+## 1. Purpose and scope
 
-- ホストが真値を渡し、アダプタが「センサが測った値」を返します。
-- アダプタは、センサの誤差のモデルを受け持ちます。
-- 物理の計算、取り付け位置姿勢の当てはめ、自動操縦への渡し方、通信は、この口の外です。ホストが受け持ちます。
-- 最初に決めるのは IMU だけです。地磁気、気圧、GPS は、IMU の口が固まってから同じ形で足します。
+- The host passes the truth, and the adapter returns "the value the sensor measured".
+- The adapter owns the sensor error model.
+- Physics computation, applying the mounting pose, passing values to the autopilot, and communication are outside this interface. The host owns them.
+- Only the IMU is defined first. Magnetometer, barometer, and GPS are added in the same form after the IMU interface is settled.
 
-## 2. ホストとアダプタの受け持ち
+## 2. Host and adapter responsibilities
 
-箱庭ドローン PRO のセンサの処理の順番を、ホストとアダプタで次のように分けます。
+The sensor processing order of Hakoniwa Drone PRO is split between the host and the adapter as follows.
 
 ```text
-ホスト：真値（物理） → 取り付け位置姿勢（位置 → 姿勢） → 振動を足す（オプション）
+Host: truth (physics) → mounting pose (position → orientation) → add vibration (optional)
                                                          │
-アダプタ：                                                ▼
-        フィルタ（オプション） → 遅れ → 測る → 目盛り・軸の干渉・ゼロ点 → ノイズ → ドリフト → 分解能 → 頭打ち → 出力
+Adapter:                                                 ▼
+        filter (optional) → delay → sample → scale, crosstalk, bias → noise → drift → resolution → saturation → output
                                                          │
-ホスト：                                                  ▼
-        ソフトの遅れ → 自動操縦・ログ
+Host:                                                    ▼
+        software delay → autopilot, log
 ```
 
-| 受け持ち | 中身 | 理由 |
+| Owner | Content | Reason |
 |---|---|---|
-| ホスト | 物理の真値、取り付け位置姿勢（剛体の式とセンサの軸への回転）、ロータ由来の振動 | どの実装にも同じ入力を渡すため。比べたときの差が、誤差のモデルの差だけになる |
-| アダプタ | IMU のフィルタ、遅れ、測る周期、目盛りの誤差・軸の干渉・ゼロ点のずれ、ノイズ、ドリフト、分解能、頭打ち | センサの誤差のモデルそのもの。実装ごとに違ってよいところ |
-| ホスト | ソフトの遅れ（自動操縦が受け取ってから使うまで） | センサの外の話 |
+| Host | Physics truth, mounting pose (rigid-body formulas and rotation to the sensor axes), rotor-induced vibration | To give every implementation the same input. Differences in a comparison then come only from the error models |
+| Adapter | IMU filter, delay, sample period, scale error, crosstalk, bias, noise, drift, resolution, saturation | This is the sensor error model itself. Implementations may differ here |
+| Host | Software delay (from when the autopilot receives a value until it uses it) | Outside the sensor |
 
-振動は、センサの位置で起きる物理の揺れとして扱い、ホストが真値に足してから渡します。
+Vibration is treated as physical shaking at the sensor location. The host adds it to the truth before passing it.
 
-## 3. 決めたこと（原則）
+## 3. Decisions (principles)
 
-### 3.1 C++ の抽象クラスにする（Control Link と同じ形）
+### 3.1 A C++ abstract class (the same form as Control Link)
 
-- 口は C++ の抽象クラス `IImuSensorAdapter`（`include/hakoniwa/sensor_adapter/imu_sensor_adapter.hpp`）です。
-- やりとりする値は、既定値の付いた構造体で渡します（`ImuTruth`、`ImuSample`、`ImuCalibration` など）。
-- 失敗は戻り値（false）とエラーの文字列で返します。例外は投げません。
-- 共有ライブラリとして実行時に読み込む仕組み（プラグインの表と版の確かめ）は、Control Link と同じ形で別に決めます。そのときは、ホストとアダプタを同じコンパイラ・同じ C++ の標準ライブラリで作ることが前提になります。
+- The interface is the C++ abstract class `IImuSensorAdapter` (`include/hakoniwa/sensor_adapter/imu_sensor_adapter.hpp`).
+- Values are exchanged as structs with default values (`ImuTruth`, `ImuSample`, `ImuCalibration`, and others).
+- Failures are returned as a return value (false) and an error string. No exceptions are thrown.
+- The mechanism for loading a shared library at run time (plugin table and version check) is defined separately, in the same form as Control Link. It assumes that the host and the adapter are built with the same compiler and the same C++ standard library.
 
-### 3.2 真値：センサの位置・センサの軸の値
+### 3.2 Truth: values at the sensor location, in sensor axes
 
-ホストは、物理の刻みごとに、取り付け位置姿勢を当てはめた後の真値を渡します。
+The host passes the truth every physics step, after the mounting pose has been applied.
 
-| 渡すもの | 座標 | 単位 |
+| Value | Frame | Unit |
 |---|---|---|
-| 角速度 | センサの軸 | rad/s |
-| 比力（加速度計が理想的に測る値。重力の分を含む） | センサの軸 | m/s² |
-| センサの姿勢（世界 NWU から見た回転） | 四元数 | — |
-| 重力の加速度 | 世界 NWU | m/s² |
+| Angular velocity | Sensor axes | rad/s |
+| Specific force (the value an ideal accelerometer measures; includes gravity) | Sensor axes | m/s² |
+| Sensor orientation (rotation seen from world NWU) | Quaternion | — |
+| Gravitational acceleration | World NWU | m/s² |
 
-- 箱庭ドローン PRO が内部で使っている量（比力）を、そのまま渡します。
-- 姿勢と重力は補助の値です。比力ではなく、重力を含まない加速度を入力に取る実装のために渡します（a = f + R⁻¹·g）。
-- 箱庭の決まりで、世界は NWU（x 北、y 西、z 上）、機体とセンサは FLU（x 前、y 左、z 上）で渡します。静止して水平のとき、比力はセンサの z 軸で +g です。
-- 箱庭ドローン PRO の中の座標（NED・FRD）との変換は、ホストが口の境目で行います。
+- The quantity that Hakoniwa Drone PRO uses internally (specific force) is passed as is.
+- Orientation and gravity are auxiliary values. They are passed for implementations that take acceleration without gravity as input instead of specific force (a = f + R⁻¹·g).
+- By Hakoniwa convention, the world is passed in NWU (x north, y west, z up), and the vehicle and the sensor in FLU (x forward, y left, z up). At rest and level, the specific force is +g on the sensor z axis.
+- The host converts from the frames inside Hakoniwa Drone PRO (NED, FRD) at the interface boundary.
 
-### 3.3 ジャイロと加速度は別々に測る
+### 3.3 Gyroscope and accelerometer are sampled separately
 
-箱庭ドローン PRO では、ジャイロと加速度に、別々の周期・遅れ・フィルタを設定できます。
+In Hakoniwa Drone PRO, the gyroscope and the accelerometer can have separate periods, delays, and filters.
 
-- アダプタは、ジャイロの値と加速度の値を別々に返します。
-- それぞれに「この刻みで新しい値ができたか」の印と、測った時刻を付けます。
+- The adapter returns gyroscope values and accelerometer values separately.
+- Each carries a flag "a new value was produced at this step" and the measurement time.
 
-### 3.4 時刻はホストが決める
+### 3.4 The host decides the time
 
-- ホストは、物理の刻みごとに、シミュレーションの時刻（ns、整数）を付けて真値を渡します。刻みは作るときに知らせた値で一定です。
-- 測る周期の境目は、時刻 0、T、2T、…です。その間は、前に測った値を返し続けます。
-- 時刻が刻みどおりに進まなかったら（戻った、飛んだ）、エラーにします。やり直すときは、`reset` を呼んでから時刻 0 から渡します。
+- The host passes the truth every physics step with the simulation time (ns, integer). The step is constant at the value given at creation.
+- The sample period boundaries are time 0, T, 2T, .... In between, the adapter keeps returning the previous measured value.
+- If time does not advance by the step (it goes back or jumps), it is an error. To restart, call `reset` and then pass values from time 0.
 
-### 3.5 設定：アダプタは自分の形式の設定だけを読む
+### 3.5 Configuration: the adapter reads only its own format
 
-Control Link と同じ考え方にします。
+This follows the same approach as Control Link.
 
-- ホストは、アダプタに自分の設定（drone_config）を渡しません。渡すのは、アダプタ自身の設定ファイルの場所だけです。
-- 誤差のモデルの値（ノイズ、ずれ、周期など）は、アダプタの形式で書きます。Gazebo のアダプタなら SDFormat の `<sensor type="imu">` です。
-- **箱庭ドローン PRO は、drone_config からアダプタの設定を作る道具（Python）を持ちます。** PX4 と ArduPilot のパラメータを drone_config から作っているのと同じ形です。
-  - 同じ意味の項目は、箱庭のセンサの仕様の「SDFormat との対応」の式で書き換えます（例：ドリフトの σ → `dynamic_bias_stddev = σ·√(2/τ)`、周期 ms → `update_rate` Hz）。
-  - 書き換えられない項目（頭打ち、遅れ、目盛りの誤差など）は、黙って落とさず、一覧にして知らせます。必要なら止めます。
-  - こうすると、同じ drone_config から、箱庭のモデルと外のモデルの両方を動かして比べられます。
+- The host does not pass its own configuration (drone_config) to the adapter. It passes only the location of the adapter's own configuration file.
+- Error model values (noise, bias, period, and so on) are written in the adapter's format. For the Gazebo adapter, this is SDFormat `<sensor type="imu">`.
+- **Hakoniwa Drone PRO has a tool (Python) that creates the adapter configuration from drone_config.** This is the same approach used to create the PX4 and ArduPilot parameters from drone_config.
+  - Items with the same meaning are converted with the formulas in "Mapping to SDFormat" in the Hakoniwa sensor specification (for example: drift σ → `dynamic_bias_stddev = σ·√(2/τ)`, period in ms → `update_rate` in Hz).
+  - Items that cannot be converted (saturation, delay, scale error, and so on) are not dropped silently. They are listed and reported. If needed, the tool stops.
+  - This way, both the Hakoniwa model and an external model can be run from the same drone_config and compared.
 
-口の側は設定の中身を知らないので、口を変えずに、いろいろな実装をつなげます。
+Because the interface side does not know the content of the configuration, many implementations can be connected without changing the interface.
 
-### 3.6 乱数とリセット
+### 3.6 Random numbers and reset
 
-- ホストは、作るときに次を渡します。
-  - 乱数の種（`simulation.randomSeed`。なければ「種なし」）
-  - 機体の名前・番号
-  - センサの名前
-- 箱庭のモデルは、これらから特性ごとに別の乱数の列を作ります。アダプタも同じ材料を受け取ります。
-- `reset` で、内部の状態をすべて作ったときの状態に戻します。対象は、遅れの履歴、測った値と周期の境目、ドリフト、起動時に引くずれ、乱数の列です。
-- 同じ種・同じ入力なら同じ値の並びになるかどうかを、能力の表で宣言します。
+- At creation, the host passes the following:
+  - The random seed (`simulation.randomSeed`; "no seed" if absent)
+  - The vehicle name and index
+  - The sensor name
+- The Hakoniwa model creates a separate random stream for each characteristic from these. The adapter receives the same inputs.
+- `reset` returns all internal state to its state at creation. This covers the delay history, the measured values and period boundaries, drift, the bias drawn at start-up, and the random streams.
+- Whether the same seed and the same input give the same sequence of values is declared in the capability table.
 
-### 3.7 自動操縦の較正のための値
+### 3.7 Values for autopilot calibration
 
-箱庭ドローン PRO は、加速度のゼロ点のずれや目盛りの誤差を、自動操縦の較正の値（PX4 の `CAL_ACC0_*`、ArduPilot の `INS_ACCOFFS_*`・`INS_ACCSCAL_*`）として書き出します。
+Hakoniwa Drone PRO writes out the accelerometer bias and scale error as autopilot calibration values (PX4 `CAL_ACC0_*`, ArduPilot `INS_ACCOFFS_*` and `INS_ACCSCAL_*`).
 
-- アダプタは、`reset` のたびに、使っている較正の値（ゼロ点のずれ、目盛りの誤差）を返せるようにします。
-- 返せないアダプタは、能力の表でそう宣言します。そのときは、ホストは較正の値を書き出しません。
+- After every `reset`, the adapter can return the calibration values it uses (bias, scale error).
+- An adapter that cannot return them declares this in the capability table. In that case, the host does not write out calibration values.
 
-### 3.8 値の印（flags）
+### 3.8 Value flags
 
-- ジャイロと加速度の値（`ImuChannel`）には、それぞれ `flags` を付けます。
-- いま決めているビットは「頭打ちした」（`kImuFlagSaturated`）だけです。測った値のどれかの軸が、測れる範囲の端で切られたときに立てます。
-- 頭打ちを持たない実装は、ビットを立てず、能力の表の `range_clamp` を `false` にします。ホストは、能力の表を見て「頭打ちしていない」と「見ていない」を区別します。
-- 決めていないビットは 0 にします。ビットはあとから足せます（口の版は上げません）。
-- ホストが印をどう使うか（ログに出す、自動操縦に知らせるなど）は、箱庭ドローン PRO の仕様で別に決めます。
+- Gyroscope and accelerometer values (`ImuChannel`) each carry `flags`.
+- The only bit defined now is "saturated" (`kImuFlagSaturated`). It is set when any axis of the measured value was clipped at the end of the measurable range.
+- An implementation without saturation does not set the bit and sets `range_clamp` in the capability table to `false`. The host uses the capability table to distinguish "not saturated" from "not checked".
+- Undefined bits are 0. Bits can be added later (the interface version is not raised).
+- How the host uses the flags (writing them to the log, telling the autopilot, and so on) is defined separately in the Hakoniwa Drone PRO specification.
 
-### 3.9 ログ用の値（getter）
+### 3.9 Values for logging (getters)
 
-センサの中の値（ドリフトの今の値、起動時に引いたずれ、フィルタを通した直後の値など）は、実装ごとに違います。
-ホストがその中身を知らなくてもログに残せるように、**列の名前と値を読む getter** を口に持たせます。
+Values inside the sensor (current drift, the bias drawn at start-up, the value right after the filter, and so on) differ between implementations.
+So that the host can log them without knowing their content, the interface has **getters that read column names and values**.
 
-- `log_columns()`：ログの列の名前・単位を返します。インスタンスを作ったあとは変わりません。
-- `log_values()`：直前の `step()` のあとの、各列の値（double）を、列と同じ順番で返します。
-- 列の名前は、アダプタが決めます（例 `gyro_bias_x`、`accel_drift_z`）。ホストは、名前のまま CSV などの列にします。
-- ログの列を持たない実装は、空の列を返します。
-- 読むだけで、アダプタの状態は変えません。読まなくても、センサの値は変わりません。
+- `log_columns()`: returns the names and units of the log columns. They do not change after the instance is created.
+- `log_values()`: returns the value (double) of each column after the last `step()`, in the same order as the columns.
+- The adapter decides the column names (for example `gyro_bias_x`, `accel_drift_z`). The host uses the names as they are for CSV columns and similar.
+- An implementation without log columns returns empty columns.
+- These only read; they do not change the adapter state. Not reading them does not change the sensor values.
 
-### 3.10 インスタンスとスレッド
+### 3.10 Instances and threads
 
-- 1 つのインスタンスは、1 つの機体の 1 つの IMU です。
-- 1 つのインスタンスは、1 つのスレッドからだけ呼びます。
-- 別のインスタンスを別のスレッドから呼んでよいかどうかは、能力の表で宣言します。
+- One instance is one IMU on one vehicle.
+- One instance is called from only one thread.
+- Whether different instances may be called from different threads is declared in the capability table.
 
-## 4. 口の形
+## 4. Interface shape
 
-`include/hakoniwa/sensor_adapter/imu_sensor_adapter.hpp` が正本です。
+`include/hakoniwa/sensor_adapter/imu_sensor_adapter.hpp` is the authoritative definition.
 
-| 名前 | 中身 |
+| Name | Content |
 |---|---|
-| `ImuAdapterSetup` | 作るときにホストが渡すもの（共通の `SensorAdapterSetup`）：アダプタ自身の設定ファイル、機体の名前・番号、センサの名前、物理の刻み、乱数の種 |
-| `ImuTruth` | 物理の刻みごとの真値：時刻、角速度、比力、世界からセンサへの回転、世界の重力 |
-| `ImuChannel` | 1 つのセンサの値：新しく測ったか、測った時刻、値、印（flags） |
-| `ImuSample` | 1 刻みの出力：ジャイロと加速度の `ImuChannel` |
-| `ImuCalibration` | 自動操縦の較正の値：加速度のゼロ点のずれ、目盛り |
-| `ImuAdapterCapabilities` | 持っている機能の宣言 |
-| `LogColumn` | ログの列の名前と単位（共通） |
-| `IImuSensorAdapter` | `step`、`capabilities`、`calibration`。`reset`、`log_columns`、`log_values` は共通の `ISensorAdapter` から受け継ぐ |
+| `ImuAdapterSetup` | What the host passes at creation (the common `SensorAdapterSetup`): the adapter's own configuration file, vehicle name and index, sensor name, physics step, random seed |
+| `ImuTruth` | Truth every physics step: time, angular velocity, specific force, rotation from world to sensor, world gravity |
+| `ImuChannel` | Values of one sensor: whether a new value was measured, measurement time, value, flags |
+| `ImuSample` | Output of one step: the gyroscope and accelerometer `ImuChannel` |
+| `ImuCalibration` | Autopilot calibration values: accelerometer bias, scale |
+| `ImuAdapterCapabilities` | Declaration of the supported features |
+| `LogColumn` | Name and unit of a log column (common) |
+| `IImuSensorAdapter` | `step`, `capabilities`, `calibration`. `reset`, `log_columns`, and `log_values` are inherited from the common `ISensorAdapter` |
 
-`test/imu_sensor_adapter_contract.cpp` に、誤差のない見本のアダプタと、ホストからの呼び方の例があります。
+`test/imu_sensor_adapter_contract.cpp` contains a reference adapter with no error and an example of how the host calls it.
 
-## 5. 能力の表
+## 5. Capability table
 
-能力は構造体 `ImuAdapterCapabilities` で返します。持っていない機能は `false` にし、持っているふりはしません。
+Capabilities are returned in the struct `ImuAdapterCapabilities`. Features the adapter does not have are set to `false`. An adapter does not pretend to have them.
 
-| 項目 | 意味 |
+| Item | Meaning |
 |---|---|
-| `filter` | IMU のフィルタ |
-| `delay` | センサの値そのものの遅れ |
-| `separate_gyro_accel_timing` | ジャイロと加速度に別々の周期・遅れ |
-| `noise`、`bias`、`drift`、`resolution` | ノイズ、ゼロ点のずれ、ドリフト、分解能 |
-| `range_clamp` | 頭打ち（`kImuFlagSaturated` を立てる） |
-| `calibration_values` | `calibration()` で較正の値を返せる |
-| `deterministic_with_seed` | 同じ種・同じ入力・同じ呼び順で同じ値 |
-| `thread_safe_across_instances` | 別のインスタンスを別のスレッドから同時に呼べる |
+| `filter` | IMU filter |
+| `delay` | Delay of the sensor value itself |
+| `separate_gyro_accel_timing` | Separate periods and delays for gyroscope and accelerometer |
+| `noise`, `bias`, `drift`, `resolution` | Noise, bias, drift, resolution |
+| `range_clamp` | Saturation (sets `kImuFlagSaturated`) |
+| `calibration_values` | `calibration()` can return calibration values |
+| `deterministic_with_seed` | Same values with the same seed, the same input, and the same call order |
+| `thread_safe_across_instances` | Different instances can be called at the same time from different threads |
 
-## 6. ホスト（箱庭ドローン PRO）の側でやること
+## 6. What the host (Hakoniwa Drone PRO) does
 
-- drone_config で、IMU の実装を選べるようにします（アダプタのライブラリと、その設定ファイルの場所）。既定は箱庭のモデルのままです。
-- drone_config からアダプタの設定を作る道具を用意します（Gazebo なら SDFormat）。書き換えられなかった項目の一覧も出します。
-- 外のアダプタを選んだときは、ジャイロと加速度のセンサの部品が、どちらも同じ 1 つのアダプタのインスタンスを使います。
-- 取り付け位置姿勢、振動、ソフトの遅れ、ログ、自動操縦への渡し方は、箱庭のモデルを選んだときと同じ経路を通ります。
+- Make the IMU implementation selectable in drone_config (the adapter library and the location of its configuration file). The default remains the Hakoniwa model.
+- Provide a tool that creates the adapter configuration from drone_config (SDFormat for Gazebo). It also outputs the list of items that could not be converted.
+- When an external adapter is selected, both the gyroscope and the accelerometer sensor components use the same single adapter instance.
+- Mounting pose, vibration, software delay, logging, and passing values to the autopilot go through the same path as when the Hakoniwa model is selected.

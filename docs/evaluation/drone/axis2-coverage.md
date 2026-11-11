@@ -1,39 +1,39 @@
-# 軸 2：表せる範囲（2026-11-01）
+# Axis 2: coverage (2026-11-01)
 
-Project AirSim は、core_sim のセンサをそのままコンパイルしたもので確かめました。
+Project AirSim was checked with the core_sim sensors compiled as is.
 
-実機のセンサの性質を、設定で表せるかどうかです。アダプタの能力の表と、ソース、軸 1 の測定で確かめました。
+This axis is whether the properties of real sensors can be expressed by configuration. We checked with the adapter capability tables, the source, and the axis 1 measurements.
 
-- ○：表せる（測定で確かめた）
-- △：表せるが、条件付き
-- ×：表せない
+- ○: can be expressed (confirmed by measurement)
+- △: can be expressed, with conditions
+- ×: cannot be expressed
 
-| # | 性質 | 箱庭 | Gazebo | Gazebo の注記 | Project AirSim（core_sim） | Project AirSim の注記 |
+| # | Property | Hakoniwa | Gazebo | Gazebo notes | Project AirSim (core_sim) | Project AirSim notes |
 |---|---|---|---|---|---|---|
-| 1 | ノイズ（5 つのセンサ） | ○ | ○ | | △ | GPS にノイズがない |
-| 2 | 固定のずれ | ○ | △ | 符号が半分の確率で逆になる（`bias_mean`） | △ | IMU（turn-on-bias）と気圧（QNH）はできる。地磁気はできない |
-| 3 | 起動時に引くずれ | ○ | ○ | | △ | 地磁気だけ（平均 −b、標準偏差 b で引く）。種が固定なので、毎回同じ値になる |
-| 4 | ゆっくり変わるずれ（IMU） | ○ | ○ | 自己相関が少し短い（軸 1） | △ | ランダムウォーク（bias-stability）。Gauss-Markov ではない |
-| 5 | ゆっくり変わるずれ（地磁気・気圧・GPS） | ○ | × | 時間の幅 0 でノイズを足すため、ずれが進まない | △ | 気圧だけ（圧力の係数）。定常のばらつきが σ の約 1/10（軸 1） |
-| 6 | 分解能 | ○ | △ | 1e-6 より小さい刻みは無視される。地磁気（テスラ）では実際の刻みが書けない | × |  |
-| 7 | 測る周期（センサごと） | ○ | ○ | | ○ |  |
-| 8 | ジャイロと加速度で別の周期 | ○ | × | IMU で 1 つの `update_rate` | × |  |
-| 9 | センサの値の遅れ | ○ | × | | × | 気圧の遅れの設定は読むが使わない（アダプタは 0 以外を断る） |
-| 10 | 頭打ち（測れる範囲） | ○ | × | | × |  |
-| 11 | 目盛りの誤差・軸の干渉 | ○ | × | | △ | 地磁気のスカラーの倍率だけ |
-| 12 | IMU のフィルタ | ○ | × | | × |  |
-| 13 | 硬鉄・軟鉄（地磁気） | ○ | × | 固定のずれで硬鉄に近いことはできるが、符号が逆になりうる（[軸 1](axis1-accuracy.md)）。軟鉄はない | × |  |
-| 14 | 天気（海面の気圧・気温） | ○ | × | 標準大気に固定 | × | 標準大気に固定 |
-| 15 | 気温・気圧高度の出力 | ○ | × | 気圧だけ | △ | 気圧高度だけ（逆算が最大 2.65 m ずれる）。気温は出さない |
-| 16 | GPS の受信機の報告（精度・衛星の数・進行方向） | ○ | × | いつも 3D の測位 | △ | 測位の種類と EPH/EPV（メートルではない値） |
-| 17 | GPS の水平のノイズをメートルで書く | ○ | × | 度で書く。経度の方向は cos(緯度) 倍に縮む | × | GPS にノイズがない |
-| 18 | 自動操縦の較正の値（加速度） | ○ | × | 使っているずれを外に出さない | × |  |
+| 1 | Noise (5 sensors) | ○ | ○ | | △ | GPS has no noise |
+| 2 | Bias | ○ | △ | Sign flips with probability one half (`bias_mean`) | △ | Possible for the IMU (turn-on-bias) and the barometer (QNH). Not for the magnetometer |
+| 3 | Turn-on bias drawn at start-up | ○ | ○ | | △ | Magnetometer only (drawn with mean −b, standard deviation b). The seed is fixed, so the value is the same every time |
+| 4 | Slowly varying bias (IMU) | ○ | ○ | Autocorrelation slightly short (axis 1) | △ | Random walk (bias-stability), not Gauss-Markov |
+| 5 | Slowly varying bias (magnetometer, barometer, GPS) | ○ | × | Noise is added with a time step of 0, so the bias does not advance | △ | Barometer only (pressure factor). Steady-state spread is about 1/10 of σ (axis 1) |
+| 6 | Resolution | ○ | △ | Steps smaller than 1e-6 are ignored. For the magnetometer (tesla) a real step cannot be written | × |  |
+| 7 | Sample period (per sensor) | ○ | ○ | | ○ |  |
+| 8 | Separate periods for gyro and accelerometer | ○ | × | One `update_rate` per IMU | × |  |
+| 9 | Sensor value delay | ○ | × | | × | The barometer delay setting is read but not used (the adapter refuses non-zero values) |
+| 10 | Saturation (measurement range) | ○ | × | | × |  |
+| 11 | Scale error, crosstalk | ○ | × | | △ | Scalar scale factor of the magnetometer only |
+| 12 | IMU filter | ○ | × | | × |  |
+| 13 | Hard iron, soft iron (magnetometer) | ○ | × | A bias can approximate hard iron, but the sign can flip ([axis 1](axis1-accuracy.md)). No soft iron | × |  |
+| 14 | Weather (sea-level pressure and temperature) | ○ | × | Fixed to the standard atmosphere | × | Fixed to the standard atmosphere |
+| 15 | Temperature and pressure altitude output | ○ | × | Pressure only | △ | Pressure altitude only (the inverse is off by up to 2.65 m). No temperature output |
+| 16 | GPS receiver reports (accuracy, number of satellites, heading) | ○ | × | Always a 3D fix | △ | Fix type and EPH/EPV (values not in metres) |
+| 17 | GPS horizontal noise specified in metres | ○ | × | Specified in degrees. Shrinks by cos(latitude) in the longitude direction | × | GPS has no noise |
+| 18 | Autopilot calibration values (accelerometer) | ○ | × | The bias in use is not exposed | × |  |
 
-## Gazebo にあって箱庭にないもの
+## In Gazebo but not in Hakoniwa
 
-| 性質 | 説明 |
+| Property | Description |
 |---|---|
-| ノイズの平均（`mean`） | 箱庭はゼロ点のずれで表す |
-| 高度計（`altimeter`） | 箱庭のセンサの仕様にない |
-| IMU の姿勢の出力（`enable_orientation`） | 箱庭のセンサの仕様にない |
-| 場所で変わる地磁気 | gz-sim の側（世界の設定と場所）で決まる。センサの誤差のモデルの比較の外 |
+| Noise mean (`mean`) | Hakoniwa expresses this as a bias |
+| Altimeter (`altimeter`) | Not in the Hakoniwa sensor specification |
+| IMU orientation output (`enable_orientation`) | Not in the Hakoniwa sensor specification |
+| Location-dependent magnetic field | Decided on the gz-sim side (world settings and location). Outside the comparison of sensor error models |

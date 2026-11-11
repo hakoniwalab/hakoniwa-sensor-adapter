@@ -1,75 +1,75 @@
-# 軸 1：確からしさ（2026-11-01）
+# Axis 1: accuracy (2026-11-01)
 
-誤差の設定を 1 つずつ入れて、（出力 − 真値）の統計を、設定から計算した期待値と比べました。
-同じ意味になるように、箱庭は drone_config、Gazebo は SDFormat、Project AirSim は core_sim の JSON の項目で書きました（単位の換算は下の注）。IMU のホワイトノイズは、Project AirSim では密度で書くので、σ × √(測る間隔) に換算しました。真値は止まった状態（IMU は水平で静止、GPS は原点）です。
+We added error settings one at a time and compared the statistics of (output − truth) with expected values computed from the settings.
+To give the settings the same meaning, we wrote them as drone_config items for Hakoniwa, SDFormat items for Gazebo, and core_sim JSON items for Project AirSim (unit conversions in the notes below). Project AirSim specifies IMU white noise as a density, so we converted it as σ × √(sample interval). The truth is a stationary state (IMU level and at rest, GPS at the origin).
 
-測り方：[ドローンのセンサの結果](README.md) の「測り方」のとおり。
+Method: as in "Method" in [Drone sensor results](README.md).
 
-## 結果
+## Results
 
-Project AirSim は、core_sim のセンサをそのままコンパイルしたものです。「—」は、その設定を Project AirSim では表せないことを表します（下の説明）。
+Project AirSim is the core_sim sensors compiled as is. "—" means that the setting cannot be expressed in Project AirSim (explained below).
 
-| センサ | 設定 | 統計 | 期待値 | 箱庭 | Gazebo | Project AirSim |
+| Sensor | Setting | Statistic | Expected | Hakoniwa | Gazebo | Project AirSim |
 |---|---|---|---|---|---|---|
-| ジャイロ | ノイズ 0.01 rad/s | 標準偏差（N = 20,000） | 0.01 | 0.01001 | 0.01004 | 0.00997 |
-| 加速度 | ノイズ 0.05 m/s² | 標準偏差 | 0.05 | 0.0507 | 0.0499 | 0.0501 |
-| ジャイロ | 固定のずれ 0.5 °/s | 平均 | 0.008727 rad/s | 0.008727 | **0.000087**（200 回の平均） | 0.008727 |
-| ジャイロ | 固定のずれ 0.5 °/s | 正の値になった回の割合 | 1 | 1 | **0.505** | 1 |
-| ジャイロ | 起動時に引くずれ 1 °/s | 400 回の標準偏差 | 0.01745 rad/s | 0.01823 | 0.01623 | — |
-| ジャイロ | ゆっくり変わるずれ σ 0.05 °/s、τ 1 s | 標準偏差（1000 τ） | 0.000873 rad/s | 0.000867 | 0.000850 | — |
-| ジャイロ | 同上 | τ での自己相関 | 0.368 | 0.369 | **0.302** | — |
-| ジャイロ | ずれのランダムウォーク 0.001、τ 500 s | 100 秒後の 200 回の標準偏差 | 0.000447 rad/s | — | — | **0（200 回とも同じ）** |
-| ジャイロ | 同上 | 1 回の長い実行で、100 秒ごとの変化の標準偏差（200 区間） | 0.000447 rad/s | — | — | 0.000436 |
-| ジャイロ | 分解能 0.001 rad/s（ノイズあり） | 刻みに乗った値の割合 | 1 | 1 | 1 | — |
-| 地磁気 | ノイズ 100 nT | 標準偏差 | 100 | 100.2 | 101.2 | 99.9 |
-| 地磁気 | 固定のずれ 3000 nT | 平均 | 3000 | 3000 | **−3000** | — |
-| 地磁気 | 起動時のずれ b = 3000 nT（`noise-bias`） | 400 回の平均、標準偏差 | 平均 −3000、標準偏差 3000 | — | — | **400 回とも −7209（標準偏差 0）** |
-| 地磁気 | ゆっくり変わるずれ σ 100 nT、τ 1 s | 標準偏差 | 100 | 99.6 | **0（動かない）** | — |
-| 地磁気 | 分解能 15 nT | 刻みに乗った値の割合 | 1 | 1 | **0（効かない）** | — |
-| 気圧 | ノイズ 0.5 m（5.94 Pa） | 標準偏差 | 5.94 Pa | 5.95 | 5.86 | 5.97 |
-| 気圧 | 固定のずれ +2 m | 平均 − 真の気圧 | −23.7 Pa | −23.7 | −23.7 | −23.8（QNH で） |
-| 気圧 | ゆっくり変わるずれ σ 0.3 m、τ 1 s | 標準偏差 | 3.56 Pa | 3.47 | **0（動かない）** | **0.35（1/10）** |
-| 気圧 | 分解能 1 Pa | 刻みに乗った値の割合 | 1 | 1 | 1 | — |
-| GPS | 水平のノイズ 0.5 m | 北の標準偏差 | 0.5 | 0.501 | 0.500 | — |
-| GPS | 同上 | 東の標準偏差 | 0.5 | 0.497 | **0.337** | — |
-| GPS | 垂直のノイズ 1.0 m | 標準偏差 | 1.0 | 1.001 | 1.001 | — |
-| GPS | 速度のノイズ 0.1 m/s | 北の標準偏差 | 0.1 | 0.100 | 0.101 | — |
-| GPS | ゆっくり変わるずれ σ 0.5 m、τ 1 s | 北の標準偏差 | 0.5 | 0.515 | **0（動かない）** | — |
+| Gyro | Noise 0.01 rad/s | Standard deviation (N = 20,000) | 0.01 | 0.01001 | 0.01004 | 0.00997 |
+| Accelerometer | Noise 0.05 m/s² | Standard deviation | 0.05 | 0.0507 | 0.0499 | 0.0501 |
+| Gyro | Bias 0.5 °/s | Mean | 0.008727 rad/s | 0.008727 | **0.000087** (mean of 200 runs) | 0.008727 |
+| Gyro | Bias 0.5 °/s | Fraction of runs with a positive value | 1 | 1 | **0.505** | 1 |
+| Gyro | Turn-on bias drawn at start-up 1 °/s | Standard deviation over 400 runs | 0.01745 rad/s | 0.01823 | 0.01623 | — |
+| Gyro | Slowly varying bias σ 0.05 °/s, τ 1 s | Standard deviation (1000 τ) | 0.000873 rad/s | 0.000867 | 0.000850 | — |
+| Gyro | Same | Autocorrelation at τ | 0.368 | 0.369 | **0.302** | — |
+| Gyro | Bias random walk 0.001, τ 500 s | Standard deviation over 200 runs after 100 s | 0.000447 rad/s | — | — | **0 (all 200 runs identical)** |
+| Gyro | Same | Standard deviation of the change per 100 s within one long run (200 intervals) | 0.000447 rad/s | — | — | 0.000436 |
+| Gyro | Resolution 0.001 rad/s (with noise) | Fraction of values on the step grid | 1 | 1 | 1 | — |
+| Magnetometer | Noise 100 nT | Standard deviation | 100 | 100.2 | 101.2 | 99.9 |
+| Magnetometer | Bias 3000 nT | Mean | 3000 | 3000 | **−3000** | — |
+| Magnetometer | Turn-on bias b = 3000 nT (`noise-bias`) | Mean and standard deviation over 400 runs | Mean −3000, standard deviation 3000 | — | — | **−7209 in all 400 runs (standard deviation 0)** |
+| Magnetometer | Slowly varying bias σ 100 nT, τ 1 s | Standard deviation | 100 | 99.6 | **0 (does not move)** | — |
+| Magnetometer | Resolution 15 nT | Fraction of values on the step grid | 1 | 1 | **0 (no effect)** | — |
+| Barometer | Noise 0.5 m (5.94 Pa) | Standard deviation | 5.94 Pa | 5.95 | 5.86 | 5.97 |
+| Barometer | Bias +2 m | Mean − true pressure | −23.7 Pa | −23.7 | −23.7 | −23.8 (via QNH) |
+| Barometer | Slowly varying bias σ 0.3 m, τ 1 s | Standard deviation | 3.56 Pa | 3.47 | **0 (does not move)** | **0.35 (1/10)** |
+| Barometer | Resolution 1 Pa | Fraction of values on the step grid | 1 | 1 | 1 | — |
+| GPS | Horizontal noise 0.5 m | North standard deviation | 0.5 | 0.501 | 0.500 | — |
+| GPS | Same | East standard deviation | 0.5 | 0.497 | **0.337** | — |
+| GPS | Vertical noise 1.0 m | Standard deviation | 1.0 | 1.001 | 1.001 | — |
+| GPS | Velocity noise 0.1 m/s | North standard deviation | 0.1 | 0.100 | 0.101 | — |
+| GPS | Slowly varying bias σ 0.5 m, τ 1 s | North standard deviation | 0.5 | 0.515 | **0 (does not move)** | — |
 
-太字は、期待値と合わなかった値です。
+Bold values do not match the expected value.
 
-## 違いの説明
+## Explanation of the differences
 
 ### Gazebo
 
-- **固定のずれの符号**：Gazebo は、`bias_mean` を読み込むときに、50 % の確率で符号を逆にします（gz-sensors の `GaussianNoiseModel`）。決まったずれを表せません。地磁気の 1 回（−3000 nT）も、これに当たったものです。
-- **ゆっくり変わるずれ（地磁気・気圧・GPS）**：Gazebo のずれは時間の幅を使って進みますが、地磁気・気圧・GPS は時間の幅 0 でノイズを足すので、ずれが最初の値（0）のまま動きません。IMU だけは時間の幅を渡すので、動きます。
-- **地磁気の分解能**：Gazebo は、1e-6 より小さい刻みを 0 とみなして無視します。地磁気はテスラで書くので、15 nT = 1.5e-8 T は無視されます。
-- **GPS の東のノイズ**：Gazebo は水平のノイズを度で、緯度と経度に同じ大きさで足します。経度 1 度は緯度 1 度より cos(緯度) 倍短いので、東の方向は 0.5 × cos(47.6°) ≒ 0.34 m に縮みます。
-- **IMU のずれの自己相関**：Gazebo は、標準偏差は合いますが、τ での自己相関が 0.30 と、期待値 0.37 より小さく出ました（1000 τ の長さで測っても同じ）。理由はまだ分かっていません。
+- **Sign of the bias**: When Gazebo loads `bias_mean`, it flips the sign with 50 % probability (gz-sensors `GaussianNoiseModel`). A fixed bias cannot be expressed. The single magnetometer run (−3000 nT) also hit this.
+- **Slowly varying bias (dynamic bias) of the magnetometer, barometer and GPS**: Gazebo advances the bias using the time step, but the magnetometer, barometer and GPS add noise with a time step of 0. So the bias stays at its initial value (0) and does not move. Only the IMU passes the time step, so only it moves.
+- **Magnetometer resolution**: Gazebo treats a step smaller than 1e-6 as 0 and ignores it. The magnetometer is specified in tesla, so 15 nT = 1.5e-8 T is ignored.
+- **GPS east noise**: Gazebo adds horizontal noise in degrees, with the same size to latitude and longitude. One degree of longitude is cos(latitude) times shorter than one degree of latitude, so in the east direction it shrinks to 0.5 × cos(47.6°) ≈ 0.34 m.
+- **Autocorrelation of the IMU bias**: In Gazebo the standard deviation matches, but the autocorrelation at τ came out at 0.30, smaller than the expected 0.37 (the same when measured over 1000 τ). The reason is not known yet.
 
-### Project AirSim（core_sim）
+### Project AirSim (core_sim)
 
-- **種が固定**：core_sim は、どのインスタンスでも決まった種（IMU・地磁気は 1・2・3、気圧は 42）で乱数を始めます。ホストの種は使いません。そのため、何回作っても同じ値の並びになり、「回をまたいだばらつき」は 0 です。ランダムウォークは、1 回の長い実行の中で測ると式どおりでした。
+- **Fixed seed**: core_sim starts the random number generator of every instance with a fixed seed (1, 2, 3 for the IMU and magnetometer; 42 for the barometer). It does not use the host seed. So every instance gives the same value sequence, and the spread across runs is 0. The random walk matched the formula when measured within one long run.
 
-- **ノイズ**：ホワイトノイズは「ランダムウォークの密度 ÷ √(測る間隔)」で決まります。同じ σ になるように密度を換算すると、設定どおりになりました。
-- **IMU のずれ**：起動時のずれ（`turn-on-bias`）は決まったベクトルで、乱数で引く形はありません。ゆっくり変わるずれは、Gauss-Markov ではなくランダムウォーク（`bias-stability`）です。ランダムウォークの広がり（√時間に比例）は、式どおりでした。
-- **地磁気のずれ**：`noise-bias` は、起動時に「平均 −b、標準偏差 b」の正規分布で 1 回引きます。種が固定なので、引いた値は毎回同じ −7209 nT（x 軸）になります。好きな値の決まったずれ（硬鉄）は表せません。
-- **気圧のゆっくり変わるずれ**：圧力の係数の Gauss-Markov は、刻みのノイズを √(1 − α²) で縮めない式になっています。そのため、定常のばらつきは σ·√((1 − α)/(1 + α)) で、50 Hz・τ 1 s では σ の約 1/10（0.36 Pa）になりました。測る周期を変えると、ばらつきも変わります。
-- **気圧の固定のずれ**：QNH の設定で表せます（設定どおり）。
-- **GPS**：位置・速度にノイズがなく、真値をそのまま出します。
-- **分解能**：どのセンサにもありません。
+- **Noise**: White noise is set by "random walk density ÷ √(sample interval)". When the density was converted to give the same σ, it matched the setting.
+- **IMU bias**: The turn-on bias (`turn-on-bias`) is a fixed vector; there is no form that draws it from random numbers. The slowly varying bias is a random walk (`bias-stability`), not Gauss-Markov. The spread of the random walk (proportional to √time) matched the formula.
+- **Magnetometer bias**: `noise-bias` draws once at start-up from a normal distribution with mean −b and standard deviation b. Because the seed is fixed, the drawn value is −7209 nT (x axis) every time. A fixed bias of an arbitrary value (hard iron) cannot be expressed.
+- **Barometer slowly varying bias**: The Gauss-Markov process of the pressure factor uses a formula that does not scale the per-step noise by √(1 − α²). So the steady-state spread is σ·√((1 − α)/(1 + α)), which at 50 Hz and τ 1 s is about 1/10 of σ (0.36 Pa). Changing the sample period also changes the spread.
+- **Barometer bias**: Can be expressed with the QNH setting (as configured).
+- **GPS**: Position and velocity have no noise; the truth is output as is.
+- **Resolution**: None of the sensors has it.
 
-### 箱庭
+### Hakoniwa
 
-- 21 項目すべて、期待値とばらつきの幅の中で一致しました。
-- **起動時に引くずれ**：400 回の標準偏差のばらつきは ±0.6e-3 ほどです。箱庭も Gazebo も、この範囲に入っています。
+- All 21 items agreed with the expected values within the statistical spread.
+- **Turn-on bias drawn at start-up**: The spread of the standard deviation over 400 runs is about ±0.6e-3. Both Hakoniwa and Gazebo fall within this range.
 
-## 単位の換算（同じ意味にするため）
+## Unit conversions (to give the same meaning)
 
-| 項目 | 箱庭 | Gazebo | Project AirSim |
+| Item | Hakoniwa | Gazebo | Project AirSim |
 |---|---|---|---|
-| ゆっくり変わるずれ | 定常の標準偏差 σ | `dynamic_bias_stddev` = σ·√(2/τ) | （IMU はランダムウォーク）。気圧は `pressure_factor_sigma` = σ ÷ 気圧 |
-| 気圧のノイズ・ずれ | 高さ（m） | 気圧（Pa）。その場所の 1 m あたりの気圧の差（11.87 Pa/m）を掛ける | 気圧（Pa）。固定のずれは QNH |
-| GPS の水平の位置 | m | 度（緯度 1 度の長さで割る） | （ノイズなし） |
-| 地磁気 | nT | T | ガウス（1 G = 100,000 nT） |
+| Slowly varying bias | Steady-state standard deviation σ | `dynamic_bias_stddev` = σ·√(2/τ) | (IMU uses a random walk.) Barometer: `pressure_factor_sigma` = σ ÷ pressure |
+| Barometer noise and bias | Height (m) | Pressure (Pa). Multiply by the local pressure difference per metre (11.87 Pa/m) | Pressure (Pa). Bias via QNH |
+| GPS horizontal position | m | Degrees (divide by the length of one degree of latitude) | (no noise) |
+| Magnetometer | nT | T | Gauss (1 G = 100,000 nT) |
