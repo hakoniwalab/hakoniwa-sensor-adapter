@@ -28,9 +28,26 @@ The external sensor plugin ABI lets a host load range and image sensors as a sha
 
 ## Implementations
 
+- **Reference implementation** (in this repository, implementation name `reference`): returns the true values, nothing else. See [Reference implementation](#reference-implementation).
 - **Hakoniwa sensor models.** Hakoniwa's own sensor error models, used in Hakoniwa products (for example Hakoniwa Drone PRO). Their sources are not public.
 - **Gazebo gz-sensors adapter** (public): [hakoniwa-sensor-adapter-gazebo](https://github.com/hakoniwalab/hakoniwa-sensor-adapter-gazebo).
 - **Project AirSim core_sim adapter** (public): [hakoniwa-sensor-adapter-airsim](https://github.com/hakoniwalab/hakoniwa-sensor-adapter-airsim).
+
+## Reference implementation
+
+`include/hakoniwa/sensor_adapter/reference/` holds an implementation that returns the true values and adds no error of any kind. It is for hosts that have no other implementation, as the ideal baseline to compare implementations against, and as an example of how an implementation meets this interface. It is not a model of a real sensor: noise, delays, scan timing and the other error models belong to the other implementations.
+
+| Sensor | Returns | Refuses (names the key) |
+|---|---|---|
+| LiDAR | The true distance of each ray of an instant scan (`scan_mode: "instant"`), points with ring and object id; +inf when nothing is hit, -inf nearer than the minimum (REP 117) | `scan_mode` other than `instant` (including the default, rotating), `accuracy`, `range.resolution`, `no_return: "limit"` |
+| Force-torque | The true wrench | `range` and every error stage (`overload`, `delay`, `lowpass_cutoff_hz`, `nonlinearity`, `scale_error`, `crosstalk`, `bias`, `drift_per_hour`, `noise`, `resolution`, `tare_window`); `tare()` returns false |
+| Joint (encoder, joint torque) | The true position and velocity, and the joint torque as the effort (the transmitted torque, or the actuator torque when the host has none) | `delay`, `encoder`, `velocity`, `torque` |
+
+Values are sampled at `update_rate` and held in between, as for every implementation. The capability tables declare every error model false. The LiDAR measures the world only through the host's `IRayCaster`.
+
+It depends on this library and nlohmann/json (header-only). A host compiles `src/reference/reference_implementation.cpp` (or links the CMake target `hakoniwa_sensor_adapter_reference`, built when nlohmann/json is found as a package or given with `HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR`) and registers it by name: `HAKO_SENSOR_ADAPTER_IMPLEMENTATION_ENTRY(reference)()`.
+
+Other implementations live in their own repositories; this one is here because it depends on nothing else and shows the interface in use.
 
 ## Comparison results
 
@@ -55,7 +72,7 @@ Measured on macOS (arm64). The Gazebo and Project AirSim columns can be reproduc
 
 ## Build and contract tests
 
-The library is an INTERFACE target (`hakoniwa_sensor_adapter`) that needs C++17. Contract tests for each interface, including a fake C plugin loaded by a C++ host, are built when `HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS` is `ON`.
+The library is an INTERFACE target (`hakoniwa_sensor_adapter`) that needs C++17. Contract tests for each interface, including a fake C plugin loaded by a C++ host, are built when `HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS` is `ON`; the reference implementation's test is built when nlohmann/json is available (for example `-DHAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR=<dir with nlohmann/json.hpp>`).
 
 ```bash
 cmake -S . -B build -DHAKONIWA_SENSOR_ADAPTER_BUILD_TESTS=ON
