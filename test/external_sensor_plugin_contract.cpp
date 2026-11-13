@@ -2,6 +2,7 @@
 // shared library, checks its table, and drives one sensor through the lifecycle.
 #include "hakoniwa/sensor_adapter/external_sensor_plugin.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

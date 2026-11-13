@@ -14,6 +14,25 @@ target_compile_features(hakoniwa_sensor_adapter
         cxx_std_17
 )
 
+# The reference implementation (true values only; see
+# include/hakoniwa/sensor_adapter/reference/). Optional: it needs nlohmann/json
+# (header-only), found as a package or given as a directory. The interface
+# library above needs nothing.
+set(HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR "" CACHE PATH
+    "Directory that contains nlohmann/json.hpp (when nlohmann_json is not installed as a package)")
+find_package(nlohmann_json 3 QUIET)
+if(nlohmann_json_FOUND OR EXISTS "${HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR}/nlohmann/json.hpp")
+    add_library(hakoniwa_sensor_adapter_reference STATIC src/reference/reference_implementation.cpp)
+    target_link_libraries(hakoniwa_sensor_adapter_reference PUBLIC hakoniwa_sensor_adapter)
+    if(nlohmann_json_FOUND)
+        target_link_libraries(hakoniwa_sensor_adapter_reference PUBLIC nlohmann_json::nlohmann_json)
+    else()
+        target_include_directories(hakoniwa_sensor_adapter_reference PUBLIC
+            ${HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR})
+    endif()
+    set_target_properties(hakoniwa_sensor_adapter_reference PROPERTIES POSITION_INDEPENDENT_CODE ON)
+endif()
+
 option(
     HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS
     "Build standalone sensor-adapter contract tests"
@@ -58,6 +77,16 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
         PRIVATE HAKO_FAKE_PLUGIN_PATH="$<TARGET_FILE:fake_external_sensor_plugin>")
     add_dependencies(external_sensor_plugin_contract_test fake_external_sensor_plugin)
     add_test(NAME external_sensor_plugin_contract COMMAND external_sensor_plugin_contract_test)
+
+    if(TARGET hakoniwa_sensor_adapter_reference)
+        add_executable(reference_implementation_test test/reference_implementation_test.cpp)
+        target_link_libraries(reference_implementation_test PRIVATE hakoniwa_sensor_adapter_reference)
+        target_compile_definitions(reference_implementation_test
+            PRIVATE REFERENCE_TEST_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+        add_test(NAME reference_implementation COMMAND reference_implementation_test)
+    else()
+        message(STATUS "nlohmann/json not found: the reference implementation and its test are skipped")
+    endif()
 
     # Sensor definition schema: examples and docs/spec examples (needs Python with jsonschema).
     find_package(Python3 COMPONENTS Interpreter)
