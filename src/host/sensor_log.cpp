@@ -209,6 +209,11 @@ public:
     bool reset(std::string& error) override { return model_->reset(error); }
     const std::vector<sa::LogColumn>& log_columns() const override { return model_->log_columns(); }
     void log_values(std::vector<double>& values) const override { model_->log_values(values); }
+    bool update_period_ns(std::uint64_t& period_ns) const override { return model_->update_period_ns(period_ns); }
+    bool set_update_period_ns(std::uint64_t period_ns, std::string& error) override
+    {
+        return model_->set_update_period_ns(period_ns, error);
+    }
 
     bool open(std::unique_ptr<Interface> model, const SensorLogConfig& config,
               std::vector<std::string> columns, std::string& error)
@@ -263,6 +268,14 @@ public:
     }
     sa::ImuAdapterCapabilities capabilities() const override { return model_->capabilities(); }
     bool calibration(sa::ImuCalibration& out) const override { return model_->calibration(out); }
+    bool part_update_period_ns(sa::ImuPart part, std::uint64_t& period_ns) const override
+    {
+        return model_->part_update_period_ns(part, period_ns);
+    }
+    bool set_part_update_period_ns(sa::ImuPart part, std::uint64_t period_ns, std::string& error) override
+    {
+        return model_->set_part_update_period_ns(part, period_ns, error);
+    }
 };
 
 class LoggedMagAdapter final : public LoggedAdapter<sa::IMagSensorAdapter> {

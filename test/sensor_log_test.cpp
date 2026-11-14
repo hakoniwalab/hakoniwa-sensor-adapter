@@ -55,8 +55,23 @@ public:
     }
     sa::ImuAdapterCapabilities capabilities() const override { return {}; }
     bool calibration(sa::ImuCalibration&) const override { return false; }
+    bool part_update_period_ns(sa::ImuPart part, std::uint64_t& period_ns) const override
+    {
+        period_ns = part == sa::ImuPart::gyro ? gyro_period_ : 1000000U;
+        return true;
+    }
+    bool set_part_update_period_ns(sa::ImuPart part, std::uint64_t period_ns, std::string& error) override
+    {
+        if (part != sa::ImuPart::gyro) {
+            error = "only the gyro";
+            return false;
+        }
+        gyro_period_ = period_ns;
+        return true;
+    }
 
 private:
+    std::uint64_t gyro_period_{500000U};
     std::vector<sa::LogColumn> columns_{{"model_steps", ""}};
     int steps_{0};
 };
@@ -225,6 +240,24 @@ void test_binary(const fs::path& dir)
     check(ok && at == bytes.size(), "binary: three rows and nothing else");
 }
 
+// [PER-020] [PER-130] the wrapper passes the period calls to the adapter
+void test_wrapper_passes_periods(const fs::path& dir)
+{
+    sa::ImuAdapterSetup setup;
+    setup.config_path = write_file(dir / "sensor.json", R"({"model": "model.json", "log": {"path": "imu.csv"}})");
+    std::string error;
+    auto imu = host::create_logged_imu_sensor_adapter(setup, error, &create_fake_imu);
+    check(imu != nullptr && dynamic_cast<FakeImu*>(imu.get()) == nullptr, "periods: wrapped");
+    if (!imu) return;
+    std::uint64_t period = 0;
+    check(imu->part_update_period_ns(sa::ImuPart::gyro, period) && period == 500000U, "periods: gyro read through");
+    check(imu->set_part_update_period_ns(sa::ImuPart::gyro, 250000U, error) &&
+              imu->part_update_period_ns(sa::ImuPart::gyro, period) && period == 250000U,
+          "periods: gyro changed through");
+    check(!imu->set_part_update_period_ns(sa::ImuPart::accel, 250000U, error) && error == "only the gyro",
+          "periods: the adapter's refusal comes through");
+}
+
 // [LOG-COL-020]
 void test_baro(const fs::path& dir)
 {
@@ -272,7 +305,8 @@ int main()
 {
     const fs::path dir = fs::temp_directory_path() / "hakoniwa_sensor_log_test";
     using Test = void (*)(const fs::path&);
-    for (const Test test : {test_model_own_file, test_model_without_log, test_csv, test_binary, test_baro, test_invalid}) {
+    for (const Test test : {test_model_own_file, test_model_without_log, test_csv, test_binary, test_wrapper_passes_periods,
+                            test_baro, test_invalid}) {
         fs::remove_all(dir);
         fs::create_directories(dir);
         write_file(dir / "model.json", "{}");

@@ -87,6 +87,27 @@ public:
     /// Values of the log columns after the last step(), in column order.
     /// Reading does not change the adapter state.
     virtual void log_values(std::vector<double>& values) const = 0;
+
+    /// The period the adapter measures at now [ns]: a whole number of physics steps
+    /// (docs/spec/update-period.md). A host compares it with what the sensor it stands
+    /// for does, for example a chip's output data rate. Returns false when the adapter
+    /// does not say; period_ns is then unchanged.
+    virtual bool update_period_ns(std::uint64_t& period_ns) const
+    {
+        (void)period_ns;
+        return false;
+    }
+
+    /// Measures every period_ns from the next step() on, on the multiples of period_ns
+    /// counted from time 0. Returns false and sets error when the adapter does not support
+    /// it or refuses the period (for example not a whole number of physics steps); it then
+    /// measures as before.
+    virtual bool set_update_period_ns(std::uint64_t period_ns, std::string& error)
+    {
+        (void)period_ns;
+        error = "changing the update period is not supported";
+        return false;
+    }
 };
 
 }  // namespace hakoniwa::sensor_adapter
