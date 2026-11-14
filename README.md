@@ -49,6 +49,19 @@ It depends on this library and nlohmann/json (header-only). A host compiles `src
 
 Other implementations live in their own repositories; this one is here because it depends on nothing else and shows the interface in use.
 
+## Host helpers
+
+Before a host calls an adapter, it turns the motion of the body the sensor is mounted on into the truth at the sensor. `include/hakoniwa/sensor_adapter/host/sensor_host.hpp` (CMake target `hakoniwa_sensor_adapter_host`, C++17, no dependency) does this the same way for every host and every physics engine:
+
+| Function | From the body origin's motion and the mount, it gives |
+|---|---|
+| `imu_truth` | the angular velocity and the specific force at the sensor point, in the sensor axes. The lever-arm terms α×r + ω×(ω×r) use the true motion; an optional rotor vibration is added after them, before the mount rotation |
+| `mag_truth` | the earth field (intensity, declination, inclination) in NWU and in the sensor axes |
+| `baro_truth` | the sensor point's height above mean sea level (the origin's ellipsoid height minus the geoid height, plus the local height) and the sea-level weather |
+| `gps_truth` | the antenna position and velocity (v + ω×r) in NWU, and the same position on WGS-84 |
+
+The body motion is in world NWU and body FLU. `mount_from_rpy_deg` makes a mount from roll, pitch and yaw in FLU (R = Rz(yaw)·Ry(pitch)·Rx(roll)); `mount_from_frd_rpy_deg` takes a mount written in body FRD with the same angles, as Hakoniwa Drone's configuration does. Everything after the truth (delay, sampling, noise, drift, range) is the adapter's.
+
 ## Comparison results
 
 The implementations were compared through this interface with the same truth, on six axes: no-noise agreement, accuracy, coverage, repeatability, speed and adoption effort. No pass/fail criteria are set; the pages list the numbers and the reasons for the differences. See [docs/evaluation](docs/evaluation/README.md).

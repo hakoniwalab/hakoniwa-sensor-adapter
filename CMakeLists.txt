@@ -14,6 +14,12 @@ target_compile_features(hakoniwa_sensor_adapter
         cxx_std_17
 )
 
+# Engine-neutral rigid-body and mounting-pose helpers used by sensor hosts.
+add_library(hakoniwa_sensor_adapter_host STATIC src/host/sensor_host.cpp)
+target_link_libraries(hakoniwa_sensor_adapter_host PUBLIC hakoniwa_sensor_adapter)
+target_compile_features(hakoniwa_sensor_adapter_host PUBLIC cxx_std_17)
+set_target_properties(hakoniwa_sensor_adapter_host PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 # The reference implementation (true values only; see
 # include/hakoniwa/sensor_adapter/reference/). Optional: it needs nlohmann/json
 # (header-only), found as a package or given as a directory. The interface
@@ -49,6 +55,10 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
     add_executable(mag_baro_gps_adapter_contract_test test/mag_baro_gps_adapter_contract.cpp)
     target_link_libraries(mag_baro_gps_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
     add_test(NAME mag_baro_gps_adapter_contract COMMAND mag_baro_gps_adapter_contract_test)
+
+    add_executable(sensor_host_test test/sensor_host_test.cpp)
+    target_link_libraries(sensor_host_test PRIVATE hakoniwa_sensor_adapter_host)
+    add_test(NAME sensor_host COMMAND sensor_host_test)
 
     add_executable(range_image_adapter_contract_test test/range_image_adapter_contract.cpp)
     target_link_libraries(range_image_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
