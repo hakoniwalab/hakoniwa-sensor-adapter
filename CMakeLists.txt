@@ -37,6 +37,18 @@ if(nlohmann_json_FOUND OR EXISTS "${HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUD
             ${HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR})
     endif()
     set_target_properties(hakoniwa_sensor_adapter_reference PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    # Sensor logs for hosts (include/hakoniwa/sensor_adapter/host/sensor_log.hpp).
+    add_library(hakoniwa_sensor_adapter_log STATIC src/host/sensor_log.cpp)
+    target_link_libraries(hakoniwa_sensor_adapter_log PUBLIC hakoniwa_sensor_adapter)
+    target_compile_features(hakoniwa_sensor_adapter_log PUBLIC cxx_std_17)
+    if(nlohmann_json_FOUND)
+        target_link_libraries(hakoniwa_sensor_adapter_log PRIVATE nlohmann_json::nlohmann_json)
+    else()
+        target_include_directories(hakoniwa_sensor_adapter_log PRIVATE
+            ${HAKONIWA_SENSOR_ADAPTER_NLOHMANN_JSON_INCLUDE_DIR})
+    endif()
+    set_target_properties(hakoniwa_sensor_adapter_log PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
 option(
@@ -59,6 +71,12 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
     add_executable(sensor_host_test test/sensor_host_test.cpp)
     target_link_libraries(sensor_host_test PRIVATE hakoniwa_sensor_adapter_host)
     add_test(NAME sensor_host COMMAND sensor_host_test)
+
+    if(TARGET hakoniwa_sensor_adapter_log)
+        add_executable(sensor_log_test test/sensor_log_test.cpp)
+        target_link_libraries(sensor_log_test PRIVATE hakoniwa_sensor_adapter_log)
+        add_test(NAME sensor_log COMMAND sensor_log_test)
+    endif()
 
     add_executable(range_image_adapter_contract_test test/range_image_adapter_contract.cpp)
     target_link_libraries(range_image_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)

@@ -26,6 +26,7 @@ The design rationale is in the design documents:
 | RGB camera | [rgb-camera.md](rgb-camera.md) | `RIS-RGB-*` |
 | Force-torque sensor | [force-torque.md](force-torque.md) | `FTS-ADP-*` |
 | Joint sensor (encoder and joint torque) | [joint.md](joint.md) | `JNT-ADP-*` |
+| Sensor logs written by a host (IMU, magnetometer, barometer, GPS) | [sensor-log.md](sensor-log.md) | `LOG-*` |
 
 The drone sensors (gyro, accelerometer, magnetometer, barometer, GPS, vibration) are specified in the public hakoniwa-drone-core repository:
 <https://github.com/toppers/hakoniwa-drone-core/tree/main/docs/architecture/aircraft/sensor> (`SEN-*` IDs).
