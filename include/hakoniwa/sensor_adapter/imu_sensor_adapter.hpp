@@ -81,6 +81,13 @@ struct ImuAdapterCapabilities {
     bool thread_safe_across_instances{false};
 };
 
+/// The two parts of an IMU, which may have their own periods (a chip's gyro and
+/// accelerometer output data rates).
+enum class ImuPart : std::uint32_t {
+    gyro = 0,
+    accel = 1,
+};
+
 /// One IMU (gyro and accelerometer) of one vehicle.
 class IImuSensorAdapter : public ISensorAdapter {
 public:
@@ -92,6 +99,26 @@ public:
     /// Calibration values in use since the last reset. Returns false when
     /// capabilities().calibration_values is false.
     virtual bool calibration(ImuCalibration& out) const = 0;
+
+    /// update_period_ns() of one part. By default the adapter's own update_period_ns().
+    virtual bool part_update_period_ns(ImuPart part, std::uint64_t& period_ns) const
+    {
+        (void)part;
+        return update_period_ns(period_ns);
+    }
+
+    /// set_update_period_ns() of one part. By default refused unless the adapter has one
+    /// period for both parts and this is it (then the call changes nothing).
+    virtual bool set_part_update_period_ns(ImuPart part, std::uint64_t period_ns, std::string& error)
+    {
+        (void)part;
+        std::uint64_t now = 0;
+        if (update_period_ns(now) && now == period_ns) {
+            return true;
+        }
+        error = "changing the update period of one IMU part is not supported";
+        return false;
+    }
 };
 
 }  // namespace hakoniwa::sensor_adapter

@@ -68,6 +68,10 @@ if(HAKONIWA_SENSOR_ADAPTER_BUILD_TESTS)
     target_link_libraries(mag_baro_gps_adapter_contract_test PRIVATE hakoniwa_sensor_adapter)
     add_test(NAME mag_baro_gps_adapter_contract COMMAND mag_baro_gps_adapter_contract_test)
 
+    add_executable(update_period_contract_test test/update_period_contract.cpp)
+    target_link_libraries(update_period_contract_test PRIVATE hakoniwa_sensor_adapter)
+    add_test(NAME update_period_contract COMMAND update_period_contract_test)
+
     add_executable(sensor_host_test test/sensor_host_test.cpp)
     target_link_libraries(sensor_host_test PRIVATE hakoniwa_sensor_adapter_host)
     add_test(NAME sensor_host COMMAND sensor_host_test)
