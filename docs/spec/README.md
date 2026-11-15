@@ -26,11 +26,16 @@ The design rationale is in the design documents:
 | RGB camera | [rgb-camera.md](rgb-camera.md) | `RIS-RGB-*` |
 | Force-torque sensor | [force-torque.md](force-torque.md) | `FTS-ADP-*` |
 | Joint sensor (encoder and joint torque) | [joint.md](joint.md) | `JNT-ADP-*` |
+| Common rules for drone sensors | [drone-common.md](drone-common.md) | `SEN-COM-*` |
+| Gyroscope | [gyro.md](gyro.md) | `SEN-GYR-*` |
+| Accelerometer | [accelerometer.md](accelerometer.md) | `SEN-ACC-*` |
+| Magnetometer | [magnetometer.md](magnetometer.md) | `SEN-MAG-*` |
+| Barometer | [barometer.md](barometer.md) | `SEN-BAR-*` |
+| GPS | [gps.md](gps.md) | `SEN-GPS-*` |
 | Sensor logs written by a host (IMU, magnetometer, barometer, GPS) | [sensor-log.md](sensor-log.md) | `LOG-*` |
 | Update period: reading and changing an adapter's measurement period | [update-period.md](update-period.md) | `PER-*` |
 
-The drone sensors (gyro, accelerometer, magnetometer, barometer, GPS, vibration) are specified in the public hakoniwa-drone-core repository:
-<https://github.com/toppers/hakoniwa-drone-core/tree/main/docs/architecture/aircraft/sensor> (`SEN-*` IDs).
+The drone sensors are specified here, carried over with the same IDs from hakoniwa-drone-core at commit `221afa40809c9edb476f88c71383a43c134d4b9d`.
 
 ## 1. Requirement IDs
 
