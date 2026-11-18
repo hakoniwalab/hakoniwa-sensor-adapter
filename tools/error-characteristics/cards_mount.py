@@ -6,76 +6,19 @@ right, what was measured, with the axes and the expected values written on the p
 The data come from runs of the error-characteristics tool (ec_common.run), the same runs as imu_figures.py and
 mag_baro_gps_figures.py. The tool's --mount is in body FLU axes: x forward, y left, z up.
 """
-import argparse
-from pathlib import Path
-
 import numpy as np
-from matplotlib.patches import Arc, FancyArrowPatch, Rectangle
+from matplotlib.patches import Rectangle
 
+from cards_common import (BODY, C0, C1, C2, INK, LAT0, LON0, EARTH_R, MUTED, airframe, arrow, card, main,
+                          plt, run, save, sketch_axes, spin_arrow)
 import ec_common
-from ec_common import plt
-
-plt.rcParams["font.family"] = ["Hiragino Sans", "sans-serif"]
-INK, MUTED, TRUTH, BODY = "#14213d", "#8a96a8", "0.55", "#c9d6ea"
-C0, C1, C2 = "#14213d", "#2f6fd6", "#d1242f"
-EARTH_R = 6378137.0
-LAT0, LON0 = 35.6812, 139.7671
-
-
-# ------------------------------------------------------------------------------------------------ drawing helpers
-def arrow(ax, a, b, color=INK, lw=1.6, style="-|>", scale=14, **kw):
-    ax.add_patch(FancyArrowPatch(a, b, arrowstyle=style, mutation_scale=scale, color=color, lw=lw, **kw))
-
-
-def airframe(ax, size=0.25, alpha=1.0):
-    """A quadcopter seen from above, forward up."""
-    for ang in (45, 135, 225, 315):
-        a = np.radians(ang)
-        tip = (size * np.sin(a), size * np.cos(a))
-        ax.plot([0, tip[0]], [0, tip[1]], color=BODY, lw=7, solid_capstyle="round", alpha=alpha, zorder=1)
-        ax.add_patch(plt.Circle(tip, size * 0.28, fc="none", ec=BODY, lw=2, alpha=alpha))
-    ax.add_patch(Rectangle((-0.06, -0.06), 0.12, 0.12, fc=BODY, ec="none", alpha=alpha, zorder=1))
-
-
-def spin_arrow(ax, radius, text, color=INK):
-    ax.add_patch(Arc((0, 0), 2 * radius, 2 * radius, theta1=40, theta2=140, color=color, lw=1.8))
-    a = np.radians(140)
-    arrow(ax, (radius * np.cos(np.radians(132)), radius * np.sin(np.radians(132))),
-          (radius * np.cos(a + 0.12), radius * np.sin(a + 0.12)), color=color, scale=16)
-    ax.text(0, radius + 0.03, text, ha="center", va="bottom", fontsize=10, color=color)
-
-
-def sketch_axes(ax, xlim=(-0.45, 0.45), ylim=(-0.42, 0.5)):
-    ax.set_xlim(*xlim)
-    ax.set_ylim(*ylim)
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-
-def card(title):
-    fig, (left, right) = plt.subplots(1, 2, figsize=(12.5, 4.6), gridspec_kw={"width_ratios": [0.85, 1.15]})
-    fig.suptitle(title, fontsize=13.5, color=INK, x=0.02, ha="left", fontweight="bold")
-    return fig, left, right
-
-
-def save(fig, args, name):
-    fig.tight_layout(rect=(0, 0, 1, 0.94))
-    path = Path(args.out) / f"{name}.png"
-    fig.savefig(path, dpi=110)
-    plt.close(fig)
-    print(f"wrote {path}")
-
-
-def run(args, sensor, name, config, motion, duration, **extra):
-    return ec_common.run(args, sensor, name, config, motion, duration, **extra)
 
 
 # ------------------------------------------------------------------------------------------------ the cards
 def lever_arm(args):
     rate = np.pi
     fig, left, right = card("取り付け位置：旋回中の加速度計（てこの腕）")
-    sketch_axes(left)
-    left.set_title("測り方（上から見た図、前が上）", fontsize=11, color=INK, loc="left")
+    sketch_axes(left, title="測り方（上から見た図、前が上）")
     airframe(left)
     spin_arrow(left, 0.4, "その場で 180°/s で回し続ける")
     for r, color in ((0.0, C0), (0.1, C1), (0.2, C2)):
@@ -110,8 +53,7 @@ def lever_arm(args):
 
 def gyro_orientation(args):
     fig, left, right = card("取り付けの向き：ヨー 90° 回して付けたジャイロ")
-    sketch_axes(left, xlim=(-0.5, 0.5), ylim=(-0.45, 0.5))
-    left.set_title("測り方（上から見た図、前が上）", fontsize=11, color=INK, loc="left")
+    sketch_axes(left, xlim=(-0.5, 0.5), ylim=(-0.45, 0.5), title="測り方（上から見た図、前が上）")
     for cx, turned, color, label in ((-0.25, False, C1, "まっすぐ付けた IMU"), (0.25, True, C2, "ヨー 90° 回して付けた IMU")):
         left.add_patch(Rectangle((cx - 0.04, -0.04), 0.08, 0.08, fc=color, ec="none", alpha=0.85))
         if turned:  # FLU, yaw +90 deg: sensor x points to the body's left, sensor y to the back
@@ -151,8 +93,7 @@ def gyro_orientation(args):
 def mag_orientation(args):
     turn = 2 * np.pi / 4.0
     fig, left, right = card("取り付けの向き：ヨー 90° 回して付けた地磁気センサー")
-    sketch_axes(left)
-    left.set_title("測り方（上から見た図、前が上）", fontsize=11, color=INK, loc="left")
+    sketch_axes(left, title="測り方（上から見た図、前が上）")
     airframe(left, alpha=0.7)
     spin_arrow(left, 0.4, "4 秒で一回転（90°/s）")
     left.add_patch(Rectangle((-0.12, -0.02), 0.04, 0.04, fc=C1, ec="none", zorder=6))
@@ -224,8 +165,7 @@ def baro_height(args):
 def gps_antenna(args):
     turn = 2 * np.pi / 8.0
     fig, left, right = card("取り付け位置：前に付けた GPS アンテナ")
-    sketch_axes(left)
-    left.set_title("測り方（上から見た図、前が上）", fontsize=11, color=INK, loc="left")
+    sketch_axes(left, title="測り方（上から見た図、前が上）")
     airframe(left, alpha=0.7)
     spin_arrow(left, 0.4, "その場で 8 秒に一回転")
     left.add_patch(plt.Circle((0, 0), 0.025, fc=C0, ec="none", zorder=6))
@@ -255,16 +195,5 @@ def gps_antenna(args):
     save(fig, args, "card-mount-gps-antenna")
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--tool", required=True)
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--implementation", default="hakoniwa")
-    args = parser.parse_args()
-    Path(args.out).mkdir(parents=True, exist_ok=True)
-    for make in (lever_arm, gyro_orientation, mag_orientation, baro_height, gps_antenna):
-        make(args)
-
-
 if __name__ == "__main__":
-    main()
+    main(__doc__, [lever_arm, gyro_orientation, mag_orientation, baro_height, gps_antenna])

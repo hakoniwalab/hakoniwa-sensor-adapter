@@ -15,7 +15,7 @@ MEAS = "#d1242f"
 
 def run(args, sensor, name, config, motion, duration, **extra):
     """Runs the tool for one sensor and returns its CSV columns as arrays."""
-    out = Path(args.out) / "csv" / f"{sensor}-{name}.csv"
+    out = Path(getattr(args, "work", None) or args.out) / "csv" / f"{sensor}-{name}.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     command = [args.tool, "--implementation", args.implementation, "--sensor", sensor, "--config",
                str(HERE / "config" / sensor / config), "--motion", motion, "--duration", str(duration),
