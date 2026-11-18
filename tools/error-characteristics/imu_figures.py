@@ -45,7 +45,7 @@ def mount(args):
     axes[1].set_xlabel("time [s]"); axes[1].set_ylabel("angular rate [rad/s]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "imu-1-mount")
+    save(fig, args, ["mount-imu-lever-arm", "mount-imu-orientation"])
 
 
 def noise(args):
@@ -74,7 +74,7 @@ def noise(args):
     axes[1].set_xlabel("update period [ms]"); axes[1].set_ylabel("gyro x sd [rad/s]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "imu-2-noise")
+    save(fig, args, ["noise-imu", "noise-imu-density"])
 
 
 def offset(args):
@@ -95,7 +95,7 @@ def offset(args):
         ax.set_xlabel(label); ax.legend(fontsize=8); ax.grid(alpha=0.3)
     axes[0].set_title("Every unit has its own offset (seeds 1-1000)")
     axes[1].set_title("The same for the accelerometer")
-    save(fig, args, "imu-3-offset")
+    save(fig, args, ["offset-gyro", "offset-accel"])
 
 
 def drift(args):
@@ -119,7 +119,7 @@ def drift(args):
     axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3, which="both")
-    save(fig, args, "imu-4-drift")
+    save(fig, args, ["drift-imu", "drift-imu-allan"])
 
 
 def delay(args):
@@ -136,7 +136,7 @@ def delay(args):
         ax.step(t, d["gx"][w], where="post", color=MEAS, label=label)
         ax.set_title(title); ax.set_xlabel("time from the step [ms]"); ax.set_ylabel("gyro x [rad/s]")
         ax.grid(alpha=0.3); ax.legend(fontsize=8)
-    save(fig, args, "imu-5-delay-period")
+    save(fig, args, ["timing-imu-period", "timing-imu-delay"])
 
 
 def resolution_range(args):
@@ -157,7 +157,7 @@ def resolution_range(args):
     axes[1].set_xlabel("time [s]"); axes[1].set_ylabel("gyro x [deg/s]")
     for ax in axes:
         ax.grid(alpha=0.3); ax.legend(fontsize=8)
-    save(fig, args, "imu-6-resolution-range")
+    save(fig, args, ["resolution-imu", "range-imu"])
 
 
 def main():

@@ -54,7 +54,7 @@ def mag(args):
     axes[1].set_xlabel("field x [uT]"); axes[1].set_ylabel("field y [uT]"); axes[1].legend(fontsize=8, loc="lower left")
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "mag-1-mount-iron")
+    save(fig, args, ["mount-mag", "iron-mag"])
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     d = sampled(run(args, "mag", "noise", "noise.json", "rest", 60.0))
@@ -71,7 +71,7 @@ def mag(args):
     axes[1].set_xlabel("time [min]"); axes[1].set_ylabel("field x - truth [nT]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "mag-2-noise-drift")
+    save(fig, args, ["noise-mag", "drift-mag"])
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     p = run(args, "mag", "period", "period.json", "yawstep", 1.2, t0=1.005)
@@ -92,7 +92,7 @@ def mag(args):
     axes[1].set_xlabel("time [s]"); axes[1].set_ylabel("field y [nT]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "mag-3-delay-resolution")
+    save(fig, args, ["timing-mag", "resolution-range-mag"])
 
 
 # ---------------------------------------------------------------------------------------------------- barometer
@@ -114,7 +114,7 @@ def baro(args):
     axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "baro-1-mount-offset")
+    save(fig, args, ["mount-baro", "offset-baro"])
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     d = sampled(run(args, "baro", "noise", "noise.json", "rest", 60.0))
@@ -133,7 +133,7 @@ def baro(args):
     axes[1].set_xlabel("averaging time [s]"); axes[1].set_ylabel("Allan deviation [m]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3, which="both")
-    save(fig, args, "baro-2-noise-drift")
+    save(fig, args, ["noise-baro", "drift-baro-allan"])
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     p = run(args, "baro", "period", "period.json", "hstep", 1.2, t0=1.005)
@@ -155,7 +155,7 @@ def baro(args):
     axes[1].set_xlabel("time [s]"); axes[1].set_ylabel("altitude - start [m]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "baro-3-delay-resolution")
+    save(fig, args, ["timing-baro", "resolution-range-baro"])
 
 
 # ---------------------------------------------------------------------------------------------------- GPS
@@ -177,7 +177,7 @@ def gps(args):
     axes[1].set_xlabel("east [m]"); axes[1].set_ylabel("north [m]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3)
-    save(fig, args, "gps-1-mount-noise")
+    save(fig, args, ["mount-gps", "noise-gps"])
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
     d = sampled(run(args, "gps", "drift", "drift.json", "rest", 1800.0, every=100))
@@ -196,7 +196,7 @@ def gps(args):
     axes[1].set_ylabel("Allan deviation [m]"); axes[1].legend(fontsize=8)
     for ax in axes:
         ax.grid(alpha=0.3, which="both")
-    save(fig, args, "gps-2-drift")
+    save(fig, args, ["drift-gps", "drift-gps-allan"])
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 3.8))
     p = run(args, "gps", "period", "period.json", "move", 1.6, t0=1.05)
@@ -209,7 +209,7 @@ def gps(args):
     ax.step(q["time"][w], nq[w], where="post", color="#0b2a5b", label="period 100 ms + delay 100 ms")
     ax.set_title("Moving off: 10 fixes a second, each one late")
     ax.set_xlabel("time [s]"); ax.set_ylabel("north [m]"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
-    save(fig, args, "gps-3-delay")
+    save(fig, args, "timing-gps")
 
 
 def main():

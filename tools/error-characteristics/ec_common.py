@@ -34,12 +34,25 @@ def sampled(data, flag="updated"):
     return {key: value[mask] for key, value in data.items()}
 
 
-def save(fig, args, name):
+def save(fig, args, names):
+    """Writes each panel of the figure as its own PNG, one name per axes (a colorbar goes with the panel before it).
+
+    The pages put the panels under the error they show, so one figure may give panels to two sections."""
     fig.tight_layout()
-    path = Path(args.out) / f"{name}.png"
-    fig.savefig(path, dpi=110)
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    panels = [ax for ax in fig.axes if not hasattr(ax, "_colorbar")]
+    colorbars = [ax for ax in fig.axes if hasattr(ax, "_colorbar")]
+    names = [names] if isinstance(names, str) else names
+    if len(names) != len(panels):
+        raise ValueError(f"{len(panels)} panels, {len(names)} names")
+    for i, (ax, name) in enumerate(zip(panels, names)):
+        parts = [ax] + [cb for cb in colorbars if panels.index(cb._colorbar.mappable.axes) == i]
+        box = matplotlib.transforms.Bbox.union([a.get_tightbbox(renderer) for a in parts])
+        path = Path(args.out) / f"{name}.png"
+        fig.savefig(path, dpi=110, bbox_inches=box.transformed(fig.dpi_scale_trans.inverted()).padded(0.08))
+        print(f"wrote {path}")
     plt.close(fig)
-    print(f"wrote {path}")
 
 
 def allan(values, dt, taus):
