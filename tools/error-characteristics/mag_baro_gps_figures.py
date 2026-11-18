@@ -42,8 +42,14 @@ def mag(args):
     axes[0].set_xlabel("time [s]"); axes[0].set_ylabel("field x [uT]"); axes[0].legend(fontsize=8)
     c = run(args, "mag", "iron", "iron.json", "turn", 4.0, rate=turn)
     axes[1].plot(c["true_mx"] / 1000, c["true_my"] / 1000, color=TRUTH, label="truth: a circle about 0")
-    axes[1].plot(c["mx"] / 1000, c["my"] / 1000, color=MEAS, label="hard iron (3000, -1500, 800 nT) + soft iron")
-    axes[1].plot([0], [0], "+", color=TRUTH); axes[1].plot([3.0], [-1.5], "+", color=MEAS)
+    axes[1].plot(c["mx"] / 1000, c["my"] / 1000, color=MEAS, label="hard + soft iron (configured in FRD axes)")
+    # The configuration is in the sensor's FRD axes (Drone PRO's), the plot in FLU: the hard iron (3000, -1500) nT
+    # is (3000, +1500) here, and the soft iron's off-diagonal terms mix the vertical field (about 35 uT) into x and y.
+    centre = ((c["mx"].max() + c["mx"].min()) / 2000, (c["my"].max() + c["my"].min()) / 2000)
+    axes[1].plot([0], [0], "+", color=TRUTH)
+    axes[1].plot([centre[0]], [centre[1]], "+", color=MEAS, ms=10)
+    axes[1].annotate(f"centre ({centre[0]:.1f}, {centre[1]:.1f}) uT", centre, xytext=(6, 6),
+                     textcoords="offset points", fontsize=8, color=MEAS)
     axes[1].set_aspect("equal"); axes[1].set_title("Hard and soft iron: the circle shifts and squashes")
     axes[1].set_xlabel("field x [uT]"); axes[1].set_ylabel("field y [uT]"); axes[1].legend(fontsize=8, loc="lower left")
     for ax in axes:
