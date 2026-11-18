@@ -1,0 +1,32 @@
+{
+ "components": {
+  "sensors": {
+   "imu": {
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   },
+   "gyro": {
+    "updatePeriodMsec": 4,
+    "noise": 0.0008726646
+   },
+   "acc": {
+    "updatePeriodMsec": 4,
+    "noise": [
+     0.03,
+     0.03,
+     0.04
+    ]
+   }
+  }
+ }
+}

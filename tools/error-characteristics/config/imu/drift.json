@@ -1,0 +1,36 @@
+{
+ "components": {
+  "sensors": {
+   "imu": {
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   },
+   "gyro": {
+    "updatePeriodMsec": 4,
+    "drift": {
+     "mode": "gauss-markov",
+     "stddevDegPerSec": 0.005,
+     "correlationTimeSec": 100
+    }
+   },
+   "acc": {
+    "updatePeriodMsec": 4,
+    "drift": {
+     "mode": "gauss-markov",
+     "stddevMg": 5,
+     "correlationTimeSec": 100
+    }
+   }
+  }
+ }
+}
