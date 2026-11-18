@@ -7,47 +7,23 @@ written as a formula, and lays the measurement over the truth or over the value 
 Needs numpy and matplotlib.
 """
 import argparse
-import csv
-import subprocess
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
-CONFIG = HERE / "config" / "imu"
+import ec_common
+from ec_common import MEAS, TRUTH, allan, plt, save
+
 DEG = np.pi / 180.0
 G0 = 9.80665
-TRUTH = "0.6"
-MEAS = "#d1242f"
 
 
 def run(args, name, config, motion, duration, **extra):
-    out = Path(args.out) / "csv" / f"{name}.csv"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    command = [args.tool, "--implementation", args.implementation, "--sensor", "imu", "--config",
-               str(CONFIG / config), "--motion", motion, "--duration", str(duration), "--out", str(out)]
-    for key, value in extra.items():
-        command += [f"--{key.replace('_', '-')}", str(value)]
-    subprocess.run(command, check=True, capture_output=True)
-    with open(out) as handle:
-        rows = list(csv.DictReader(handle))
-    return {key: np.array([float(row[key]) for row in rows]) for key in rows[0]}
+    return ec_common.run(args, "imu", name, config, motion, duration, **extra)
 
 
 def sampled(data, part):
-    mask = data[f"{part}_updated"] > 0
-    return {key: value[mask] for key, value in data.items()}
-
-
-def save(fig, args, name):
-    fig.tight_layout()
-    path = Path(args.out) / f"{name}.png"
-    fig.savefig(path, dpi=110)
-    plt.close(fig)
-    print(f"wrote {path}")
+    return ec_common.sampled(data, f"{part}_updated")
 
 
 def mount(args):
@@ -120,19 +96,6 @@ def offset(args):
     axes[0].set_title("Every unit has its own offset (seeds 1-1000)")
     axes[1].set_title("The same for the accelerometer")
     save(fig, args, "imu-3-offset")
-
-
-def allan(values, dt, taus):
-    out = []
-    for tau in taus:
-        m = int(round(tau / dt))
-        n = len(values) // m
-        if n < 3:
-            out.append(np.nan)
-            continue
-        means = values[: n * m].reshape(n, m).mean(axis=1)
-        out.append(np.sqrt(0.5 * np.mean(np.diff(means) ** 2)))
-    return np.array(out)
 
 
 def drift(args):

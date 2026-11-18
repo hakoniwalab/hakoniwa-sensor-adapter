@@ -1,0 +1,26 @@
+{
+ "components": {
+  "sensors": {
+   "baro": {
+    "updatePeriodMsec": 20,
+    "drift": {
+     "mode": "gauss-markov",
+     "stddevM": 0.3,
+     "correlationTimeSec": 30
+    },
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   }
+  }
+ }
+}

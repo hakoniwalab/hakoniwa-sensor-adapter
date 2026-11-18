@@ -1,0 +1,22 @@
+{
+ "components": {
+  "sensors": {
+   "gps": {
+    "updatePeriodMsec": 100,
+    "delayMsec": 100,
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,25 @@
+{
+ "components": {
+  "sensors": {
+   "baro": {
+    "resolutionPa": 0.5,
+    "range": {
+     "minHPa": 300,
+     "maxHPa": 1100
+    },
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   }
+  }
+ }
+}

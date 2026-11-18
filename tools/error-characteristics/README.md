@@ -21,6 +21,24 @@ the same random streams, the same drift and noise-density formulas. Each figure 
 | `imu-5-delay-period` | `period.json`, `period-delay.json` | a step between two samples | the value held for the update period; the same samples, delayed |
 | `imu-6-resolution-range` | `resolution-range.json` | slow and fast ramps | 0.061 deg/s steps; clipping at 2000 deg/s and the saturated flag |
 
+## Magnetometer, barometer and GPS figures
+
+The same kinds of figure for the other drone sensors (`mag_baro_gps_figures.py`, configurations in `config/mag`,
+`config/baro`, `config/gps`). The world is fixed and illustrative: Tokyo, a 46000 nT field (declination −7.5°,
+inclination 49.5°), the standard atmosphere.
+
+| Figure | Shows |
+|---|---|
+| `mag-1-mount-iron` | one turn: a turned mounting shifts the phase; hard and soft iron shift and squash the circle |
+| `mag-2-noise-drift` | the noise against σ 30 nT; Gauss-Markov drift (σ 100 nT, τ 60 s) of three units |
+| `mag-3-delay-resolution` | a quarter turn at once, held for the 20 ms period and 50 ms late; 15 nT steps; a 0.3 G range clipping z |
+| `baro-1-mount-offset` | a sensor 0.5 m higher reads about 6 Pa less; one zero offset per unit (σ 4 m, 1000 units) |
+| `baro-2-noise-drift` | the noise against σ 0.1 m; the Allan deviation of noise plus drift (0.3 m, τ 30 s) |
+| `baro-3-delay-resolution` | a 10 m step, held and 60 ms late; 0.5 Pa (about 4 cm) steps; the 300 hPa range |
+| `gps-1-mount-noise` | an antenna 0.5 m forward draws a circle while the vehicle turns in place; the position noise against σ 0.3 m |
+| `gps-2-drift` | the fix wandering with a Gauss-Markov drift (0.5 m, τ 60 s); the Allan deviation of north |
+| `gps-3-delay` | moving off at 5 m/s: 10 fixes a second, and the same fixes 100 ms late |
+
 The values are illustrative settings within the ranges the specification gives, not those of a particular chip.
 
 ## Build and run
@@ -35,10 +53,11 @@ cmake -S tools/error-characteristics -B build-errors -DCMAKE_BUILD_TYPE=Release 
   "-DERROR_CHARACTERISTICS_LIBRARIES=$SENSOR_PRO/lib/libhakoniwa_mujoco_sensors_adapters.a;$SENSOR_PRO/lib/libhakoniwa_imu_gnss_sensor_adapters.a;$SENSOR_PRO/lib/libhakoniwa_imu_gnss_sensor_models.a"
 cmake --build build-errors
 python3 tools/error-characteristics/imu_figures.py --tool build-errors/error-characteristics --out errors-out
+python3 tools/error-characteristics/mag_baro_gps_figures.py --tool build-errors/error-characteristics --out errors-out
 ```
 
 `SENSOR_PRO` is the extracted archive, for example `hakoniwa-sensor-pro-0.1.0-macos-arm64`. The figures need numpy and
-matplotlib; all six take about half a minute.
+matplotlib; each script takes about half a minute.
 
 The tool on its own:
 
@@ -47,5 +66,6 @@ build-errors/error-characteristics --implementation hakoniwa --sensor imu --conf
   --motion rest --duration 10 --out noise.csv [--seed N] [--mount x,y,z,roll,pitch,yaw] [--rate R] [--t0 S] [--every N]
 ```
 
-Columns: `time`, the truth (`true_gx` … `true_az`, sensor axes, specific force), and per part `*_updated`, the value
-and the flags (bit 0: saturated).
+`--sensor` is `imu`, `mag`, `baro` or `gps`; `--motion` is `rest`, `turn`, `step`, `ramp`, `yawstep`, `hstep`, `climb`
+or `move` (see the head of `error_characteristics.cpp`). Each CSV has `time`, the truth (`true_*`, sensor axes for the
+IMU and the magnetometer, NWU for GPS) and the measurement with its `updated` flag and `flags` (bit 0: saturated).

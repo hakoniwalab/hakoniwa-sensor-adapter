@@ -1,0 +1,31 @@
+{
+ "components": {
+  "sensors": {
+   "gps": {
+    "updatePeriodMsec": 100,
+    "positionNoise": {
+     "horizontalM": 0.3,
+     "verticalM": 0.5
+    },
+    "drift": {
+     "mode": "gauss-markov",
+     "horizontalM": 0.5,
+     "verticalM": 0.8,
+     "correlationTimeSec": 60
+    },
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   }
+  }
+ }
+}

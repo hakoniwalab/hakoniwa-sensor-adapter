@@ -1,0 +1,39 @@
+{
+ "components": {
+  "sensors": {
+   "imu": {
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   },
+   "mag": {
+    "softIron": {
+     "diagonal": [
+      1.02,
+      0.98,
+      1.01
+     ],
+     "offDiagonal": [
+      0.01,
+      -0.02,
+      0.005
+     ]
+    },
+    "hardIronNT": [
+     3000,
+     -1500,
+     800
+    ]
+   }
+  }
+ }
+}
