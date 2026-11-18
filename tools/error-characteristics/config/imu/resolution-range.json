@@ -1,0 +1,32 @@
+{
+ "components": {
+  "sensors": {
+   "imu": {
+    "mount": {
+     "positionM": [
+      0,
+      0,
+      0
+     ],
+     "orientationDeg": {
+      "roll": 0,
+      "pitch": 0,
+      "yaw": 0
+     }
+    }
+   },
+   "gyro": {
+    "resolutionDegPerSec": 0.061,
+    "range": {
+     "fullScaleDegPerSec": 2000
+    }
+   },
+   "acc": {
+    "resolutionMps2": 0.0024,
+    "range": {
+     "fullScaleG": 16
+    }
+   }
+  }
+ }
+}
