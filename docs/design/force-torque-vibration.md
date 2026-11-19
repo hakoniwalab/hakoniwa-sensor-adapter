@@ -159,6 +159,35 @@ A  → g · m · A                  (m: run multiplier, section 3.4)
 The lag stands for the time the flexspline needs to wind up through its soft region near zero torque (the catalogue
 stiffness is lowest there); its value (0.7 s) is a fit, not a measured physical constant.
 
+### 3.6 Excitation while moving (friction)
+
+The arm's own modes (section 3.2) are excited much more while the arm moves than at rest. In the Zenodo 11096791 free
+rotation, the 5–20 Hz level on Fx was about 10 times the level at rest. The level hardly depends on the speed:
+
+| Phase of the free rotation | Joint speed | Fx, 5–20 Hz |
+|---|---|---|
+| Start of motion | 4°/s | 0.37 N |
+| Acceleration | 24°/s | 0.39 N |
+| Cruise | 45°/s | 0.29–0.77 N |
+| Deceleration | 21°/s | 0.59 N |
+| After the stop | 0 | 0.04 N |
+
+Fitting σ ∝ v^α over the moving windows gives α = 0.12 (first recording) and −0.5 (second, windows away from the
+taps); the growth proportional to activity (FTV-230, s1) would be α = 1. The level rises within 0.3 s of the start
+and falls to about 0.1 within 0.5 s of the stop. This is what a speed-independent (Coulomb-like) friction torque in
+the joint, shaking the arm's lightly damped modes, would give. The excitation is close to Gaussian (kurtosis 3.2 of
+the band-passed signal), so it is not a train of distinct stick-slip events.
+
+The model therefore has a level while moving, independent of the speed above a small ramp:
+
+```text
+σ = s0 + s1 · activity + s2 · min(1, activity / a_r)      s2: per_motion, a_r: motion_ramp (default 0.02)
+```
+
+In the first recording, the frequency of one mode also jumped up by about 1.3 Hz at the moment the arm stopped (pose
+unchanged), as if the joints stiffened when the friction sticks. This was not visible in the second recording (tap
+ringing) and is not modelled.
+
 ## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
 ```text
@@ -288,6 +317,7 @@ first version).
 | VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
 | VIB-A10 | Run-to-run variation is a log-normal multiplier per component, constant during a run, on the motion-driven parts only; components with a common source share it | **measured** on two recordings (section 3.4); the distribution and σ_r inferred from two | three or more repetitions of the same motion | the multiplier also varies within a run, or the level at rest varies too |
 | VIB-A11 | The order components of a joint change in size with the direction of the power the joint transmits (a gain per direction, first-order lag); modes and broadband do not | **measured** on two recordings (section 3.5), the gains and the lag inferred from one; load and pose change together there | the same motion with the tool going under instead of over, or with an added payload | the gain depends on the load size or on the pose, not only on the direction |
+| VIB-A12 | While the arm moves, its modes are excited at a level that does not depend on the speed (friction); the frequency of a mode stays fixed | **measured** on two recordings (section 3.6): level vs speed and start/stop; the ramp (0.02) inferred from the start | recordings at several speeds, and a mode's frequency over the pose | the level depends on the load or the joint, or the mode frequency moves with the pose (seen in the first recording, not modelled) |
 
 **In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
 rise with motion, reproducible from a seed.

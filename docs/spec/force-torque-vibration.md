@@ -54,7 +54,8 @@ load on one flank or the other (design section 3.5). Optional per joint; without
 |---|---|
 | FTV-210 | Each mode n has a frequency f_n and a damping ζ_n (0 < ζ_n < 1, f_n < 1 / 2h). Its signal is white noise N(0, 1), one draw per step and axis from the stream `vibration_mode`, through a second-order band-pass at f_n with Q = 1 / (2ζ_n), bilinear transform with pre-warping at the physics step, zero initial state |
 | FTV-220 | The band-pass output is scaled so that its steady-state standard deviation is 1: by 1 / √(Σ h_k²), with h_k its impulse response, computed at creation |
-| FTV-230 | The mode adds σ_{n,i} times that signal on axis i, with σ_{n,i} = s0_{n,i} + s1_{n,i} · activity. s0 is the level at rest (`at_rest`), s1 the growth with motion (`per_activity`) |
+| FTV-230 | The mode adds σ_{n,i} times that signal on axis i, with σ_{n,i} = s0_{n,i} + s1_{n,i} · activity + s2_{n,i} · min(1, activity / a_r,n). s0 is the level at rest (`at_rest`), s1 the growth with motion (`per_activity`), s2 the level while moving, whatever the speed (`per_motion`, section 3.6 of the design) |
+| FTV-235 | a_r,n (`motion_ramp`, an activity > 0, default 0.02) is the activity at which the level while moving is reached; below it the level rises linearly from 0 at rest. With a gear ratio of 160, 0.02 is about 2°/s of the joint |
 | FTV-240 | activity = Σ_j f_m,j / f_ref, with f_ref from the configuration (default 50 Hz) |
 
 ## 4. Broadband component
@@ -72,7 +73,7 @@ The same motion repeated on a real arm gives components whose strength changes f
 | ID | Requirement |
 |---|---|
 | FTV-350 | Each joint, each mode and the broadband component may have a run variation σ_r ≥ 0 (`run_log_sigma`, default 0). At creation the model draws one multiplier m = exp(σ_r · z), z from N(0, 1) in the stream `vibration_run`. σ_r = 0 gives m = 1 |
-| FTV-360 | m scales the parts driven by motion: every order amplitude A of the joint (FTV-140), the growth s1 of the mode (FTV-230, not the level at rest s0), and σ_b of the broadband component (FTV-310). The configured values are therefore the median over runs |
+| FTV-360 | m scales the parts driven by motion: every order amplitude A of the joint (FTV-140), the growth s1 and the level while moving s2 of the mode (FTV-230, not the level at rest s0), and σ_b of the broadband component (FTV-310). The configured values are therefore the median over runs |
 | FTV-370 | Components with the same `run_group` (a non-empty string) share one z; each uses its own σ_r. A component without a group has a z of its own |
 | FTV-380 | One z is drawn for each group and each ungrouped component, whether or not its σ_r is 0, in the order: joints, modes, broadband; a group is drawn at its first member in that order. Changing one σ_r therefore does not change another component's multiplier. `reset` draws the same values again (FTV-040) |
 
@@ -82,10 +83,10 @@ The same motion repeated on a real arm gives components whose strength changes f
 |---|---|
 | FTV-410 | The configuration is JSON with `"type": "force_torque_vibration"` and the optional keys `f_ref_hz`, `joints`, `modes`, `broadband`, as in the design (section 6) |
 | FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. A joint may also have `run_log_sigma` and `run_group` (section 4.1), which apply to all its orders, and `load_gain` (section 2.1). `name` is for logs and must be unique |
-| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, run_log_sigma, run_group}` |
+| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, per_motion, motion_ramp, run_log_sigma, run_group}` |
 | FTV-440 | `broadband` is `{exponent, density_per_activity, run_log_sigma, run_group}` |
-| FTV-450 | Per-axis values (`amplitude`, `at_rest`, `per_activity`, `density_per_activity`) are objects of axis groups and axes as for the force-torque sensor (FTS-ADP-520), in the axis units; an axis not given is 0. Percentages are not allowed |
-| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `run_group` that is not a non-empty string, a `load_gain` without `positive` or `negative`, a `load_gain` gain of 0 or less or a negative `lag_s`, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
+| FTV-450 | Per-axis values (`amplitude`, `at_rest`, `per_activity`, `per_motion`, `density_per_activity`) are objects of axis groups and axes as for the force-torque sensor (FTS-ADP-520), in the axis units; an axis not given is 0. Percentages are not allowed |
+| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `motion_ramp` of 0 or less, a `run_group` that is not a non-empty string, a `load_gain` without `positive` or `negative`, a `load_gain` gain of 0 or less or a negative `lag_s`, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
 
 ## 6. Random numbers and reproducibility
 
@@ -97,5 +98,6 @@ The same motion repeated on a real arm gives components whose strength changes f
 ## 7. Assumptions
 
 Each requirement rests on the assumptions of the design (section 8 there): FTV-110 to 140 on VIB-A2 and A3, FTV-150 on
-A4, FTV-210 to 240 on A5 and A6, FTV-310 on A6, FTV-170 to 185 on A11, FTV-350 to 380 on A10, FTV-060 on A8, and the
-whole model on A7 (fixed direction in sensor axes) and A9 (no load, temperature, wear or contact effects).
+A4, FTV-210 to 240 on A5 and A6, FTV-230 and 235 (level while moving) on A12, FTV-310 on A6, FTV-170 to 185 on A11,
+FTV-350 to 380 on A10, FTV-060 on A8, and the whole model on A7 (fixed direction in sensor axes) and A9 (no load,
+temperature, wear or contact effects).
