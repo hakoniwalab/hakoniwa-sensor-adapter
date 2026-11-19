@@ -4,6 +4,8 @@ English | [日本語](README.ja.md)
 
 The first part explains what a force-torque sensor measures and how each of its errors works, one figure per topic (drawn for illustration). The second part shows measurement cards, Hakoniwa and Gazebo side by side. The third part gives the comparison on the six evaluation axes.
 
+The wrist vibration of a moving arm (the vibration model) is compared with a real recording in [Comparison with a real recording (KUKA)](real-data-kuka.md).
+
 ## How a force-torque sensor works
 
 ### 1. What it measures
