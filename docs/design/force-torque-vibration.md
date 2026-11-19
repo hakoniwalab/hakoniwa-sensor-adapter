@@ -1,6 +1,6 @@
 # Force-torque sensor: vibration of a moving arm (design draft)
 
-Status: draft for discussion. No requirement IDs yet; they follow once the open questions in section 8 are settled.
+Status: draft for discussion. No requirement IDs yet; they follow once the open questions in section 9 are settled.
 
 ## 1. Why
 
@@ -173,7 +173,35 @@ Others were rejected for a low rate (100–125 Hz controller-estimated TCP force
 access or a paid licence. A clean separation of orders and modes most likely needs our own recording: rest, then the
 same motion at two or more speeds, with a wrist F/T at 500 Hz or more and the joint velocities.
 
-## 8. Open questions
+## 8. Scope and assumptions
+
+The model is a simplification on purpose. Its assumptions are numbered so that results can say which ones they rely
+on, and each carries its evidence: **measured** (checked on data), **literature** (established, not yet checked on
+our data), **inferred** (our reading, to be checked), or **simplification** (known not to hold exactly; kept for a
+first version).
+
+| ID | Assumption | Evidence | How to check | If wrong |
+|---|---|---|---|---|
+| VIB-A1 | The sensor's own white noise is independent of the motion | measured at rest only (Zenodo 11096791) | rest vs motion at a frequency free of vibration | the sensor noise has to grow with motion as well |
+| VIB-A2 | Order frequencies are integer multiples k of the motor rotation frequency N·\|q̇\|/2π | literature [1][6][7] | two speeds of the same motion: lines move in proportion | the orders are fixed modes, or the gear ratio is wrong |
+| VIB-A3 | Order amplitude follows a · (f_m / f_ref)^p, zero below a dead band | inferred | three or more speeds | a table of amplitude vs speed replaces the power law |
+| VIB-A4 | Order phases are random per unit and constant | simplification | phase is not observable in a PSD | none for spectra; matters only for time-domain matching |
+| VIB-A5 | Structural modes have fixed frequency and damping, independent of arm pose | simplification | two poses at rest | mode frequency becomes a function of pose |
+| VIB-A6 | The broadband rise grows with activity = Σ f_m / f_ref | inferred | floor at two or more speeds | another activity measure (max, per joint) |
+| VIB-A7 | The direction of each component in sensor axes is fixed (per-axis amplitudes) | simplification | the same motion in two poses | amplitudes must be mapped through the arm geometry (section 9, question 2) |
+| VIB-A8 | Components add linearly to the true wrench; the sensor stages after them (low-pass, saturation) act on the sum | literature (superposition) and the design of the adapter | — | — |
+| VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
+
+**In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
+rise with motion, reproducible from a seed.
+
+**Out of scope (first version):** load- and temperature-dependent vibration, vibration caused by contact or impacts,
+pose-dependent modes, non-stationary changes (wear), and the vibration of the arm's IMU (section 9, question 3).
+
+**Known gaps against the real data now:** with one speed only, the 40, 90 and 200 Hz peaks of the rotating arm cannot
+be assigned to orders (VIB-A2) or modes (VIB-A5); any assignment is an inference and is reported as such.
+
+## 9. Open questions
 
 1. **Where the model lives — decided (2026-11-19): in front of the adapter, implemented in Sensor PRO.** It
    computes the vibration wrench from the joint velocities and adds it to the truth, like the drone rotor vibration.
