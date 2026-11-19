@@ -18,9 +18,11 @@ physics step [s], N(0, σ) the normal distribution.
 |---|---|
 | FTV-010 | A model is created from a configuration file (section 5), the physics step, the vehicle name and index, the sensor name, and an optional seed, the fields of `SensorAdapterSetup`. Creation fails with a message on any configuration error (FTV-510) |
 | FTV-020 | `step(sim_time_ns, joint_velocity, out, error)` takes the joint velocities [rad/s, joint side] of this physics step and returns the wrench to add [N, N·m, sensor axes]. The number of velocities must equal the number of configured joints (`joint_names()` gives them in order), and each must be finite; otherwise it returns false with a message and changes no state |
+| FTV-022 | `step(sim_time_ns, joint_velocity, joint_load, out, error)` also takes the joint loads [N·m], one per configured joint in the order of `joint_names()`, each finite. The step without loads (FTV-020) is the same with loads unknown: for a model that has `load_gain` on any joint it returns false with a message and changes no state |
+| FTV-024 | `needs_joint_load()` is true when any joint has `load_gain`; a host that cannot provide loads refuses such a configuration at start-up |
 | FTV-030 | Step times are 0, h, 2h, …; any other time is an error without side effects, as for the force-torque adapter (FTS-ADP-020) |
 | FTV-040 | `reset` returns the motor phases, the filters and the random streams to their state at creation; the same inputs then give the same outputs as right after creation |
-| FTV-050 | An implementation provides the model through an entry point of its own, `HAKO_SENSOR_HOST_MODEL_ENTRY(<name>)`, returning a table with `create_force_torque_vibration`. `SensorAdapterImplementation` is not changed; an implementation without the model has no such entry |
+| FTV-050 | An implementation provides the model through an entry point of its own, `HAKO_SENSOR_HOST_MODEL_ENTRY(<name>)`, returning a table with `create_force_torque_vibration`. The table carries a version (`kHostModelImplementationVersion`, 2 since the joint loads); a host refuses another version. `SensorAdapterImplementation` is not changed; an implementation without the model has no such entry |
 | FTV-060 | The output is the sum of the order components (section 2), the structural modes (section 3) and the broadband component (section 4). With no component configured, the output is zero |
 
 ## 2. Order components (follow motor speed)
@@ -33,6 +35,18 @@ physics step [s], N(0, σ) the normal distribution.
 | FTV-140 | Amplitude: A = a_{j,k,i} · (f_m,j / f_ref)^p · min(1, f_m,j / f_dead,j). p defaults to 0 (amplitude constant with speed, design references [6][9]); f_dead,j defaults to 1 Hz. The factor makes the component vanish smoothly as the joint stops |
 | FTV-150 | θ_{j,k,i} is drawn once at creation from U(−π, π) in the stream `vibration_phase`, in the order of joints, then orders, then axes |
 | FTV-160 | Optional resonance gain per order (`"resonance": true`): A is multiplied by max over the configured modes of 1 / √((1 − r²)² + (2ζ_n r)²), r = k·f_m,j / f_n. Without modes the gain is 1 |
+
+### 2.1 Load direction of a joint (gear flank)
+
+The orders of a strain-wave gear change with the direction in which the joint transmits torque: the teeth carry the
+load on one flank or the other (design section 3.5). Optional per joint; without it nothing changes.
+
+| ID | Requirement |
+|---|---|
+| FTV-170 | A joint may have `load_gain` `{positive, negative, lag_s}` (all ≥ 0; `positive` and `negative` > 0). The model then needs the joint loads: the host passes, with the velocities, the torque each joint transmits [N·m, joint side] (FTV-022) |
+| FTV-175 | The load direction is the sign of P_j = τ_j · q̇_j: P_j > 0 when the joint drives the motion (for example lifting against gravity), P_j < 0 when the load drives it (for example lowering with gravity). P_j = 0 keeps the previous direction |
+| FTV-180 | The gain g_j follows the target g_target = `positive` (P_j > 0) or `negative` (P_j < 0) with a first-order lag: g_j ← g_j + (1 − exp(−h / T)) (g_target − g_j), T = `lag_s`; T = 0 switches at once. At creation and reset g_j is 1 until the first step with P_j ≠ 0, which sets g_j to its target |
+| FTV-185 | g_j multiplies every order amplitude of joint j (FTV-140), together with the run multiplier (FTV-360). It does not change modes or the broadband component |
 
 ## 3. Structural modes (fixed frequency)
 
@@ -67,11 +81,11 @@ The same motion repeated on a real arm gives components whose strength changes f
 | ID | Requirement |
 |---|---|
 | FTV-410 | The configuration is JSON with `"type": "force_torque_vibration"` and the optional keys `f_ref_hz`, `joints`, `modes`, `broadband`, as in the design (section 6) |
-| FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. A joint may also have `run_log_sigma` and `run_group` (section 4.1), which apply to all its orders. `name` is for logs and must be unique |
+| FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. A joint may also have `run_log_sigma` and `run_group` (section 4.1), which apply to all its orders, and `load_gain` (section 2.1). `name` is for logs and must be unique |
 | FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, run_log_sigma, run_group}` |
 | FTV-440 | `broadband` is `{exponent, density_per_activity, run_log_sigma, run_group}` |
 | FTV-450 | Per-axis values (`amplitude`, `at_rest`, `per_activity`, `density_per_activity`) are objects of axis groups and axes as for the force-torque sensor (FTS-ADP-520), in the axis units; an axis not given is 0. Percentages are not allowed |
-| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `run_group` that is not a non-empty string, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
+| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `run_group` that is not a non-empty string, a `load_gain` without `positive` or `negative`, a `load_gain` gain of 0 or less or a negative `lag_s`, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
 
 ## 6. Random numbers and reproducibility
 
@@ -83,5 +97,5 @@ The same motion repeated on a real arm gives components whose strength changes f
 ## 7. Assumptions
 
 Each requirement rests on the assumptions of the design (section 8 there): FTV-110 to 140 on VIB-A2 and A3, FTV-150 on
-A4, FTV-210 to 240 on A5 and A6, FTV-310 on A6, FTV-350 to 380 on A10, FTV-060 on A8, and the whole model on A7 (fixed
-direction in sensor axes) and A9 (no load, temperature, wear or contact effects).
+A4, FTV-210 to 240 on A5 and A6, FTV-310 on A6, FTV-170 to 185 on A11, FTV-350 to 380 on A10, FTV-060 on A8, and the
+whole model on A7 (fixed direction in sensor axes) and A9 (no load, temperature, wear or contact effects).

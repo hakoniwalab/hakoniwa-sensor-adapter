@@ -42,6 +42,18 @@ public:
     virtual bool step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity, Wrench& out,
                       std::string& error) = 0;
 
+    /// One physics step with the joint loads (FTV-022): the torque each joint transmits [N m, joint side], in the
+    /// order of joint_names(). Needed by a model with a load gain (FTV-170); other models ignore the loads.
+    virtual bool step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity,
+                      const std::vector<double>& joint_load, Wrench& out, std::string& error)
+    {
+        (void)joint_load;
+        return step(sim_time_ns, joint_velocity, out, error);
+    }
+
+    /// True when the model needs the joint loads (FTV-024); the host refuses the model if it cannot provide them.
+    virtual bool needs_joint_load() const { return false; }
+
     /// Back to the state at creation (FTV-040).
     virtual bool reset(std::string& error) = 0;
 
@@ -54,7 +66,8 @@ using ForceTorqueVibrationFactory = std::unique_ptr<IForceTorqueVibration> (*)(
     const ForceTorqueVibrationSetup& setup, std::string& error);
 
 /// Version of HostModelImplementation. A host refuses a descriptor with another version.
-constexpr std::uint32_t kHostModelImplementationVersion = 1;
+/// 2: IForceTorqueVibration gained the step with joint loads and needs_joint_load() (FTV-022, FTV-024).
+constexpr std::uint32_t kHostModelImplementationVersion = 2;
 
 /**
  * @brief The host-side models of one implementation (FTV-050).
