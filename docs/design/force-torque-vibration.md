@@ -1,6 +1,6 @@
 # Force-torque sensor: vibration of a moving arm (design draft)
 
-Status: draft for discussion. No requirement IDs yet; they follow once the open questions in section 7 are settled.
+Status: draft for discussion. No requirement IDs yet; they follow once the open questions in section 8 are settled.
 
 ## 1. Why
 
@@ -83,14 +83,36 @@ density_i = c_i · activity^p_b
 
 This covers the 64–350 times rise of the 40–300 Hz floor in the data.
 
-## 4. Inputs
+## 4. Where it sits: a host helper
+
+```text
+joint velocities ─▶ ForceTorqueVibration (host helper) ─▶ vibration wrench
+true wrench (physics) ──────────────────────────────┴─(+)─▶ ForceTorqueTruth ─▶ any force-torque adapter
+```
+
+A sketch of the helper (names not final):
+
+```cpp
+class ForceTorqueVibration {
+public:
+    bool configure(const std::string& path, std::uint64_t seed, std::string& error);  // section 6
+    void reset();                                                                       // phases, filters, streams
+    // One physics step: joint velocities [rad/s] in the order of the configuration; returns the wrench to add.
+    Wrench step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity);
+};
+```
+
+Its random streams follow the common derivation (seed, vehicle, sensor, characteristic), so the same seed gives the
+same vibration, independent of the adapter's own streams.
+
+## 5. Inputs
 
 - Joint velocities q̇_j every physics step (rad/s, joint side), for example from the joint truth that the joint sensor
   adapter already receives, or from MoveIt trajectories replayed in the simulation.
 - Gear ratio per joint (N_j). Load or motor current could scale amplitudes; the literature gives no simple law, so
   they are left out of the first version.
 
-## 5. Configuration sketch
+## 6. Configuration sketch
 
 ```json
 {
@@ -111,7 +133,7 @@ This covers the 64–350 times rise of the 40–300 Hz floor in the data.
 
 Per-axis values use the same keys as the rest of the force-torque configuration (groups or axes, FTS-ADP-520).
 
-## 6. Fitting from data
+## 7. Fitting from data
 
 1. Record at rest, then the same motion at three or four speeds (at least two).
 2. Spectrogram against motor frequency N·|q̇|: lines whose frequency moves with speed are orders, fixed lines are
@@ -123,14 +145,14 @@ Per-axis values use the same keys as the rest of the force-torque configuration 
 With Zenodo 11096791 alone (one speed) the modes, the at-rest levels and the broadband level at that speed can be
 fitted; the orders cannot be told apart from modes. A data set with several speeds is being looked for.
 
-## 7. Open questions
+## 8. Open questions
 
-1. **Where the model lives.**
-   - (a) A host helper in this repository: it computes the vibration wrench from joint velocities and adds it to the
-     truth before the adapter, like the drone rotor vibration. No interface change, works with every implementation
-     (Gazebo too), public.
-   - (b) Inside the adapter: the adapter needs the joint velocities, so `ForceTorqueTruth` grows a field
-     (an interface and binary change for existing implementations).
+1. **Where the model lives — decided (2026-11-19): a host helper in this repository.** It computes the vibration
+   wrench from the joint velocities and adds it to the truth before the adapter, like the drone rotor vibration.
+   The interface (`ForceTorqueTruth`) does not change, so existing implementations and binaries keep working, and the
+   same vibration can be added in front of any implementation (Gazebo too), which keeps comparisons fair.
+   (Rejected: inside the adapter, which would add the joint velocities to `ForceTorqueTruth`, an interface and
+   binary change.)
 2. Whether amplitudes are configured per sensor axis directly (simple, as above) or as a force direction per joint
    mapped through the arm geometry (more physical, needs the kinematics).
 3. Whether the IMU of an arm (end-effector accelerometer) gets the same model.
