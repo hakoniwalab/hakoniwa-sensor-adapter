@@ -197,6 +197,34 @@ unchanged), as if the joints stiffened when the friction sticks: about 20 % more
 stiffness measured on a motor [21] and on stages [22]. This was not visible in the second recording (tap ringing) and
 is not modelled.
 
+A mode seen at rest may also belong to the stuck joints only. The lightly damped 9.33 Hz mode of the free rotation
+(ζ 0.023, mostly on Fz) is measured at rest. Kept at the same level while moving, it made the cruise Fz in 5–20 Hz
+1.9 times the recording; removed while moving, 1.06 times, with nothing else changed (20 runs, median). A mode can
+therefore keep a share of its level at rest while moving (FTV-232): 1 keeps it, 0 removes it once the level while
+moving is reached.
+
+### 3.7 Direction fixed in the world
+
+In the free rotation, the sensor turns 180° about a horizontal axis. The Fz part of the 5–20 Hz vibration does not
+follow the speed but the angle θ: large near 0° and 180°, almost gone near 90°.
+
+| θ (0.3 s windows) | 0–16° | 29° | 56° | 83° | 96° | 123° | 151° | 173–178° |
+|---|---|---|---|---|---|---|---|---|
+| Fz, 5–20 Hz [N, rms] | 0.08–0.14 | 0.20 | 0.05 | 0.02 | 0.02 | 0.06 | 0.11 | 0.13–0.19 |
+
+The correlation of this level with \|cos θ\| is 0.88 over the moving windows. From the gravity in the sensor
+axes, the sensor z axis is horizontal at 0° and 180° and vertical at 90°: the vibration is along a direction fixed in
+the world, horizontal and in the plane of the rotation (inferred: a sway of the arm or its base). The larger Fx of the
+arm modes (fixed in sensor axes) hides the matching \|sin θ\| part on Fx.
+
+Per-axis amplitudes in sensor axes cannot give this (VIB-A7): with them, the modelled Fz was 0.22 times the
+recording during the acceleration and 1.9 times at cruise, and its correlation with \|cos θ\| 0.04. A mode can
+therefore be given in world axes (FTV-250): the host passes the sensor orientation each step (FTV-026) and the model
+rotates the mode into the sensor axes. With a world mode along the horizontal in the rotation plane (16 Hz, ζ 0.5,
+while moving) and the Fz of the sensor-fixed 7.5 Hz mode removed, the modelled Fz was 0.98 times the recording during
+the acceleration, 1.55 at cruise and 0.75 during the deceleration, with a correlation of 0.86 with \|cos θ\| (20
+runs, median).
+
 ## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
 ```text
@@ -321,12 +349,14 @@ first version).
 | VIB-A4 | Order phases are random per unit and constant | simplification | phase is not observable in a PSD | none for spectra; matters only for time-domain matching |
 | VIB-A5 | Structural modes have fixed frequency and damping, independent of arm pose | simplification | two poses at rest | mode frequency becomes a function of pose |
 | VIB-A6 | The broadband rise grows with activity = Σ f_m / f_ref | inferred | floor at two or more speeds | another activity measure (max, per joint) |
-| VIB-A7 | The direction of each component in sensor axes is fixed (per-axis amplitudes) | simplification | the same motion in two poses | amplitudes must be mapped through the arm geometry (section 9, question 2) |
+| VIB-A7 | The direction of each component in sensor axes is fixed (per-axis amplitudes), except for modes given in world axes (VIB-A14) | simplification; **measured not to hold** for the Fz part of the 5–20 Hz vibration (section 3.7) | the same motion in two poses | amplitudes must be mapped through the arm geometry (section 9, question 2) |
 | VIB-A8 | Components add linearly to the true wrench; the sensor stages after them (low-pass, saturation) act on the sum | literature (superposition) and the design of the adapter | — | — |
 | VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
 | VIB-A10 | Run-to-run variation is a log-normal multiplier per component, constant during a run, on the motion-driven parts only; components with a common source share it | **measured** on two recordings (section 3.4); the distribution and σ_r inferred from two | three or more repetitions of the same motion | the multiplier also varies within a run, or the level at rest varies too |
 | VIB-A11 | The order components of a joint change in size with the direction of the power the joint transmits (a gain per direction, first-order lag); modes and broadband do not | **measured** on two recordings (section 3.5), the gains and the lag inferred from one; load and pose change together there | the same motion with the tool going under instead of over, or with an added payload | the gain depends on the load size or on the pose, not only on the direction |
 | VIB-A12 | While the arm moves, its modes are excited at a level that does not depend on the speed (friction); the frequency of a mode stays fixed | **measured** on two recordings (section 3.6): level vs speed and start/stop; the ramp (0.02) inferred from the start | recordings at several speeds, and a mode's frequency over the pose | the level depends on the load or the joint, or the mode frequency moves with the pose (seen in the first recording, not modelled); or the excitation is the angle-periodic ripple [20] near resonance rather than friction |
+| VIB-A13 | A mode measured at rest may exist only while the joints stick, and fade as the level while moving is reached | **measured** on one recording (section 3.6): the cruise Fz; the share kept (0) inferred | rest, motion and stop in several poses | the mode stays while moving but changes frequency or damping |
+| VIB-A14 | Part of the vibration has a direction fixed in the world; it is rotated into the sensor axes with the sensor orientation | **measured** on one recording (section 3.7): Fz against \|cos θ\|; the world direction (horizontal, in the rotation plane) and its spectrum inferred | rotations about other axes and in other poses | the direction is fixed in the arm (a link) rather than in the world |
 
 **In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
 rise with motion, reproducible from a seed.

@@ -54,6 +54,21 @@ public:
     /// True when the model needs the joint loads (FTV-024); the host refuses the model if it cannot provide them.
     virtual bool needs_joint_load() const { return false; }
 
+    /// One physics step with the joint loads and the sensor orientation (FTV-026): the rotation from the world to
+    /// the sensor axes, the same value as ForceTorqueTruth::orientation_world_to_sensor. Needed by a model with a
+    /// mode in world axes (FTV-250); other models ignore the orientation.
+    virtual bool step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity,
+                      const std::vector<double>& joint_load, const Quaternion& orientation_world_to_sensor,
+                      Wrench& out, std::string& error)
+    {
+        (void)orientation_world_to_sensor;
+        return step(sim_time_ns, joint_velocity, joint_load, out, error);
+    }
+
+    /// True when the model needs the sensor orientation (FTV-027); the host refuses the model if it cannot
+    /// provide it.
+    virtual bool needs_sensor_orientation() const { return false; }
+
     /// Back to the state at creation (FTV-040).
     virtual bool reset(std::string& error) = 0;
 
@@ -67,7 +82,8 @@ using ForceTorqueVibrationFactory = std::unique_ptr<IForceTorqueVibration> (*)(
 
 /// Version of HostModelImplementation. A host refuses a descriptor with another version.
 /// 2: IForceTorqueVibration gained the step with joint loads and needs_joint_load() (FTV-022, FTV-024).
-constexpr std::uint32_t kHostModelImplementationVersion = 2;
+/// 3: it gained the step with the sensor orientation and needs_sensor_orientation() (FTV-026, FTV-027).
+constexpr std::uint32_t kHostModelImplementationVersion = 3;
 
 /**
  * @brief The host-side models of one implementation (FTV-050).

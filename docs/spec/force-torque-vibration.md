@@ -20,9 +20,11 @@ physics step [s], N(0, σ) the normal distribution.
 | FTV-020 | `step(sim_time_ns, joint_velocity, out, error)` takes the joint velocities [rad/s, joint side] of this physics step and returns the wrench to add [N, N·m, sensor axes]. The number of velocities must equal the number of configured joints (`joint_names()` gives them in order), and each must be finite; otherwise it returns false with a message and changes no state |
 | FTV-022 | `step(sim_time_ns, joint_velocity, joint_load, out, error)` also takes the joint loads [N·m], one per configured joint in the order of `joint_names()`, each finite. The step without loads (FTV-020) is the same with loads unknown: for a model that has `load_gain` on any joint it returns false with a message and changes no state |
 | FTV-024 | `needs_joint_load()` is true when any joint has `load_gain`; a host that cannot provide loads refuses such a configuration at start-up |
+| FTV-026 | `step(sim_time_ns, joint_velocity, joint_load, orientation_world_to_sensor, out, error)` also takes the rotation from the world to the sensor axes of this step (a unit quaternion, the same value as `ForceTorqueTruth::orientation_world_to_sensor`). It is the step of FTV-022 with the orientation known. The quaternion must be finite with a norm within 1 ± 10⁻⁶; otherwise it returns false with a message and changes no state |
+| FTV-027 | `needs_sensor_orientation()` is true when any mode has `"frame": "world"` (section 3.1). The steps without the orientation (FTV-020, FTV-022) then return false with a message and change no state; a host that cannot provide the orientation refuses such a configuration at start-up |
 | FTV-030 | Step times are 0, h, 2h, …; any other time is an error without side effects, as for the force-torque adapter (FTS-ADP-020) |
 | FTV-040 | `reset` returns the motor phases, the filters and the random streams to their state at creation; the same inputs then give the same outputs as right after creation |
-| FTV-050 | An implementation provides the model through an entry point of its own, `HAKO_SENSOR_HOST_MODEL_ENTRY(<name>)`, returning a table with `create_force_torque_vibration`. The table carries a version (`kHostModelImplementationVersion`, 2 since the joint loads); a host refuses another version. `SensorAdapterImplementation` is not changed; an implementation without the model has no such entry |
+| FTV-050 | An implementation provides the model through an entry point of its own, `HAKO_SENSOR_HOST_MODEL_ENTRY(<name>)`, returning a table with `create_force_torque_vibration`. The table carries a version (`kHostModelImplementationVersion`: 2 since the joint loads, 3 since the sensor orientation); a host refuses another version. `SensorAdapterImplementation` is not changed; an implementation without the model has no such entry |
 | FTV-060 | The output is the sum of the order components (section 2), the structural modes (section 3) and the broadband component (section 4). With no component configured, the output is zero |
 
 ## 2. Order components (follow motor speed)
@@ -56,7 +58,18 @@ load on one flank or the other (design section 3.5). Optional per joint; without
 | FTV-220 | The band-pass output is scaled so that its steady-state standard deviation is 1: by 1 / √(Σ h_k²), with h_k its impulse response, computed at creation |
 | FTV-230 | The mode adds σ_{n,i} times that signal on axis i, with σ_{n,i} = s0_{n,i} + s1_{n,i} · activity + s2_{n,i} · min(1, activity / a_r,n). s0 is the level at rest (`at_rest`), s1 the growth with motion (`per_activity`), s2 the level while moving, whatever the speed (`per_motion`, section 3.6 of the design) |
 | FTV-235 | a_r,n (`motion_ramp`, an activity > 0, default 0.02) is the activity at which the level while moving is reached; below it the level rises linearly from 0 at rest. With a gear ratio of 160, 0.02 is about 2°/s of the joint |
+| FTV-232 | A mode may have `at_rest_while_moving` k (0 ≤ k ≤ 1, default 1). The level at rest then becomes s0 · (1 − (1 − k) · min(1, activity / a_r,n)): k = 1 keeps it while moving (as without the key), k = 0 removes it once the level while moving is reached. This is a mode that exists only while the joints stick (design section 3.6) |
 | FTV-240 | activity = Σ_j f_m,j / f_ref, with f_ref from the configuration (default 50 Hz) |
+
+### 3.1 Direction fixed in the world
+
+A vibration whose direction stays fixed in the world while the sensor turns (design section 3.7). Optional per mode;
+without it nothing changes.
+
+| ID | Requirement |
+|---|---|
+| FTV-250 | A mode may have `frame`: `"sensor"` (default) or `"world"`. With `"world"`, its per-axis values (`at_rest`, `per_activity`, `per_motion`) are along the world axes (the host's world, NWU in Hakoniwa): force axes Fx, Fy, Fz along world x, y, z, torque axes about them |
+| FTV-255 | A world mode computes its six signals as in FTV-210 to 232, in world axes, and adds them to the output after rotating the force vector and the torque vector into the sensor axes with the orientation of this step (FTV-026). The band-pass filters keep their state in world axes |
 
 ## 4. Broadband component
 
@@ -83,10 +96,10 @@ The same motion repeated on a real arm gives components whose strength changes f
 |---|---|
 | FTV-410 | The configuration is JSON with `"type": "force_torque_vibration"` and the optional keys `f_ref_hz`, `joints`, `modes`, `broadband`, as in the design (section 6) |
 | FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. A joint may also have `run_log_sigma` and `run_group` (section 4.1), which apply to all its orders, and `load_gain` (section 2.1). `name` is for logs and must be unique |
-| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, per_motion, motion_ramp, run_log_sigma, run_group}` |
+| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, per_motion, motion_ramp, at_rest_while_moving, frame, run_log_sigma, run_group}` |
 | FTV-440 | `broadband` is `{exponent, density_per_activity, run_log_sigma, run_group}` |
 | FTV-450 | Per-axis values (`amplitude`, `at_rest`, `per_activity`, `per_motion`, `density_per_activity`) are objects of axis groups and axes as for the force-torque sensor (FTS-ADP-520), in the axis units; an axis not given is 0. Percentages are not allowed |
-| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `motion_ramp` of 0 or less, a `run_group` that is not a non-empty string, a `load_gain` without `positive` or `negative`, a `load_gain` gain of 0 or less or a negative `lag_s`, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
+| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `motion_ramp` of 0 or less, an `at_rest_while_moving` outside [0, 1], a `frame` other than `"sensor"` or `"world"`, a `run_group` that is not a non-empty string, a `load_gain` without `positive` or `negative`, a `load_gain` gain of 0 or less or a negative `lag_s`, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
 
 ## 6. Random numbers and reproducibility
 
@@ -98,6 +111,6 @@ The same motion repeated on a real arm gives components whose strength changes f
 ## 7. Assumptions
 
 Each requirement rests on the assumptions of the design (section 8 there): FTV-110 to 140 on VIB-A2 and A3, FTV-150 on
-A4, FTV-210 to 240 on A5 and A6, FTV-230 and 235 (level while moving) on A12, FTV-310 on A6, FTV-170 to 185 on A11,
-FTV-350 to 380 on A10, FTV-060 on A8, and the whole model on A7 (fixed direction in sensor axes) and A9 (no load,
+A4, FTV-210 to 240 on A5 and A6, FTV-230 and 235 (level while moving) on A12, FTV-232 on A13, FTV-250 and 255 on A14, FTV-310 on A6, FTV-170 to 185 on A11,
+FTV-350 to 380 on A10, FTV-060 on A8, and the whole model on A7 (fixed direction in sensor axes, except world modes) and A9 (no load,
 temperature, wear or contact effects).
