@@ -178,6 +178,14 @@ and falls to about 0.1 within 0.5 s of the stop. This is what a speed-independen
 the joint, shaking the arm's lightly damped modes, would give. The excitation is close to Gaussian (kurtosis 3.2 of
 the band-passed signal), so it is not a train of distinct stick-slip events.
 
+The level while moving is a phenomenological model fitted to the observation, not a friction model. Friction that
+changes during motion is known to excite resonances of motion stages [22], and stiction near rest adds a pre-sliding
+stiffness that resonates with the inertia [21][22]. No measurement was found that shows a speed-independent random
+friction torque in a strain-wave robot joint. The vibration measured in the joints of a KUKA LBR iiwa during motion is
+angle-periodic [20]; that is the order component of section 3.1 (2× per motor turn, 40 Hz at 45°/s) and cannot give
+the 5–20 Hz level at cruise, but it crosses the arm's modes at about 8–10°/s during acceleration and deceleration,
+where a resonance should appear (not yet checked).
+
 The model therefore has a level while moving, independent of the speed above a small ramp:
 
 ```text
@@ -185,8 +193,9 @@ The model therefore has a level while moving, independent of the speed above a s
 ```
 
 In the first recording, the frequency of one mode also jumped up by about 1.3 Hz at the moment the arm stopped (pose
-unchanged), as if the joints stiffened when the friction sticks. This was not visible in the second recording (tap
-ringing) and is not modelled.
+unchanged), as if the joints stiffened when the friction sticks: about 20 % more stiffness, the kind of pre-sliding
+stiffness measured on a motor [21] and on stages [22]. This was not visible in the second recording (tap ringing) and
+is not modelled.
 
 ## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
@@ -317,7 +326,7 @@ first version).
 | VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
 | VIB-A10 | Run-to-run variation is a log-normal multiplier per component, constant during a run, on the motion-driven parts only; components with a common source share it | **measured** on two recordings (section 3.4); the distribution and σ_r inferred from two | three or more repetitions of the same motion | the multiplier also varies within a run, or the level at rest varies too |
 | VIB-A11 | The order components of a joint change in size with the direction of the power the joint transmits (a gain per direction, first-order lag); modes and broadband do not | **measured** on two recordings (section 3.5), the gains and the lag inferred from one; load and pose change together there | the same motion with the tool going under instead of over, or with an added payload | the gain depends on the load size or on the pose, not only on the direction |
-| VIB-A12 | While the arm moves, its modes are excited at a level that does not depend on the speed (friction); the frequency of a mode stays fixed | **measured** on two recordings (section 3.6): level vs speed and start/stop; the ramp (0.02) inferred from the start | recordings at several speeds, and a mode's frequency over the pose | the level depends on the load or the joint, or the mode frequency moves with the pose (seen in the first recording, not modelled) |
+| VIB-A12 | While the arm moves, its modes are excited at a level that does not depend on the speed (friction); the frequency of a mode stays fixed | **measured** on two recordings (section 3.6): level vs speed and start/stop; the ramp (0.02) inferred from the start | recordings at several speeds, and a mode's frequency over the pose | the level depends on the load or the joint, or the mode frequency moves with the pose (seen in the first recording, not modelled); or the excitation is the angle-periodic ripple [20] near resonance rather than friction |
 
 **In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
 rise with motion, reproducible from a seed.
@@ -383,5 +392,7 @@ Read in full on 2026-11-19 unless marked †; † items were not opened in full 
 18. Skrede et al., RCAR 2024, contact-wrench estimation; data: Zenodo 11096791 (CC BY 4.0). <https://zenodo.org/records/11096791>
 19. N. Ghorbel, P. S. Gandhi, F. Alpeter, "On the Kinematic Error in Harmonic Drive Gears", ASME J. Mech. Design 123(1):90–97, 2001. DOI 10.1115/1.1334379 † (abstract)
 20. N. Chawda, G. Niemeyer, "Toward Torque Control of a KUKA LBR IIWA for Physical Human-Robot Interaction", IROS 2017. <https://la.disneyresearch.com/wp-content/uploads/Toward-Torque-Control-of-a-KUKA-LBR-IIWA-for-Physical-Human-Robot-Interaction-Paper.pdf>
+21. J. Y. Yoon, D. L. Trumper, "Friction modeling, identification, and compensation based on friction hysteresis and Dahl resonance", Mechatronics 24(6):734–741, 2014. DOI 10.1016/j.mechatronics.2014.02.006 † (most of the text, from a copy)
+22. X. Dong, C. E. Okwudire, "Influence of Design Parameters on the Effectiveness of Friction Isolators in Mitigating Pre-motion Friction in Mechanical Bearings", Mechatronics (accepted manuscript). <https://par.nsf.gov/servlets/purl/10218198> † (part of the text)
 
 The gear ratios of the KUKA LBR Med 14 / LBR iiwa 14 joints were not found in an official source.
