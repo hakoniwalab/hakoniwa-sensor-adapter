@@ -1,6 +1,6 @@
 # Force-torque sensor: vibration of a moving arm (design draft)
 
-Status: draft for discussion. No requirement IDs yet; they follow once the open questions in section 9 are settled.
+Status: the requirements are in [spec/force-torque-vibration.md](../spec/force-torque-vibration.md) (`FTV-*`). Open questions 2 and 3 of section 9 stay open; the first version uses per-axis amplitudes and leaves the arm IMU out.
 
 ## 1. Why
 
@@ -142,18 +142,18 @@ same vibration, independent of the adapter's own streams.
 
 ```json
 {
-  "vibration": {
-    "f_ref_hz": 50,
-    "joints": [
-      { "name": "joint4", "gear_ratio": 100, "deadband_hz": 1,
-        "orders": [ { "order": 2, "exponent": 1.0, "amplitude": { "fx": 0.05, "fy": 0.03, "fz": 0.08, "tx": 0.002, "ty": 0.004, "tz": 0.0005 } } ] }
-    ],
-    "modes": [
-      { "frequency_hz": 9.5, "damping": 0.05,
-        "at_rest": { "fz": 0.08, "fx": 0.03 }, "per_activity": { "fz": 0.05 } }
-    ],
-    "broadband": { "exponent": 1.0, "density_per_activity": { "fx": 0.01, "fz": 0.006 } }
-  }
+  "type": "force_torque_vibration",
+  "f_ref_hz": 50,
+  "joints": [
+    { "name": "joint7", "gear_ratio": 160, "deadband_hz": 1,
+      "orders": [ { "order": 2, "exponent": 0, "resonance": true,
+                    "amplitude": { "fx": 0.05, "fy": 0.03, "fz": 0.08, "tx": 0.002, "ty": 0.004, "tz": 0.0005 } } ] }
+  ],
+  "modes": [
+    { "frequency_hz": 9.5, "damping": 0.05,
+      "at_rest": { "fz": 0.08, "fx": 0.03 }, "per_activity": { "fz": 0.05 } }
+  ],
+  "broadband": { "exponent": 1.0, "density_per_activity": { "fx": 0.01, "fz": 0.006 } }
 }
 ```
 
