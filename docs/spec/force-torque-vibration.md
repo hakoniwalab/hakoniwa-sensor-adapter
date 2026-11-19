@@ -50,26 +50,38 @@ physics step [s], N(0, σ) the normal distribution.
 | FTV-310 | On each axis i, adds N(0, σ_b,i) per step from the stream `vibration_broadband`, with σ_b,i = √(D_i · 1 / 2h) and the one-sided density D_i = c_i · activity^p_b [unit²/Hz]. p_b defaults to 1 |
 | FTV-320 | With activity 0 the broadband component is 0 |
 
+### 4.1 Run-to-run variation
+
+The same motion repeated on a real arm gives components whose strength changes from one recording to the next
+(design section 3.4). A run of the model is one creation or reset; another run is another seed.
+
+| ID | Requirement |
+|---|---|
+| FTV-350 | Each joint, each mode and the broadband component may have a run variation σ_r ≥ 0 (`run_log_sigma`, default 0). At creation the model draws one multiplier m = exp(σ_r · z), z from N(0, 1) in the stream `vibration_run`. σ_r = 0 gives m = 1 |
+| FTV-360 | m scales the parts driven by motion: every order amplitude A of the joint (FTV-140), the growth s1 of the mode (FTV-230, not the level at rest s0), and σ_b of the broadband component (FTV-310). The configured values are therefore the median over runs |
+| FTV-370 | Components with the same `run_group` (a non-empty string) share one z; each uses its own σ_r. A component without a group has a z of its own |
+| FTV-380 | One z is drawn for each group and each ungrouped component, whether or not its σ_r is 0, in the order: joints, modes, broadband; a group is drawn at its first member in that order. Changing one σ_r therefore does not change another component's multiplier. `reset` draws the same values again (FTV-040) |
+
 ## 5. Configuration
 
 | ID | Requirement |
 |---|---|
 | FTV-410 | The configuration is JSON with `"type": "force_torque_vibration"` and the optional keys `f_ref_hz`, `joints`, `modes`, `broadband`, as in the design (section 6) |
-| FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. `name` is for logs and must be unique |
-| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity}` |
-| FTV-440 | `broadband` is `{exponent, density_per_activity}` |
+| FTV-420 | `joints` is a list of `{name, gear_ratio, deadband_hz, orders}`; `orders` a list of `{order, exponent, resonance, amplitude}`. A joint may also have `run_log_sigma` and `run_group` (section 4.1), which apply to all its orders. `name` is for logs and must be unique |
+| FTV-430 | `modes` is a list of `{frequency_hz, damping, at_rest, per_activity, run_log_sigma, run_group}` |
+| FTV-440 | `broadband` is `{exponent, density_per_activity, run_log_sigma, run_group}` |
 | FTV-450 | Per-axis values (`amplitude`, `at_rest`, `per_activity`, `density_per_activity`) are objects of axis groups and axes as for the force-torque sensor (FTS-ADP-520), in the axis units; an axis not given is 0. Percentages are not allowed |
-| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent or dead band, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
+| FTV-510 | Creation fails on: an unknown key, a wrong type, a missing `type`, `name`, `gear_ratio`, `order`, `frequency_hz` or `damping`, a gear ratio, order or `f_ref_hz` of 0 or less, a negative amplitude, level, density, exponent, dead band or `run_log_sigma`, a `run_group` that is not a non-empty string, a damping outside (0, 1), a mode frequency at or above 1 / 2h, a non-finite value, or duplicate joint names |
 
 ## 6. Random numbers and reproducibility
 
 | ID | Requirement |
 |---|---|
-| FTV-610 | The streams `vibration_phase`, `vibration_mode` and `vibration_broadband` are separate and derived from the seed, the vehicle name and index, the sensor name and the characteristic (the common derivation of the sensor adapters). Turning one component off does not change the others' sequences |
+| FTV-610 | The streams `vibration_phase`, `vibration_mode`, `vibration_broadband` and `vibration_run` are separate and derived from the seed, the vehicle name and index, the sensor name and the characteristic (the common derivation of the sensor adapters). Turning one component off does not change the others' sequences |
 | FTV-620 | With a seed, the same seed, configuration, inputs and call order give the same outputs; the model's streams are independent of the force-torque adapter's streams |
 
 ## 7. Assumptions
 
 Each requirement rests on the assumptions of the design (section 8 there): FTV-110 to 140 on VIB-A2 and A3, FTV-150 on
-A4, FTV-210 to 240 on A5 and A6, FTV-310 on A6, FTV-060 on A8, and the whole model on A7 (fixed direction in sensor
-axes) and A9 (no load, temperature, wear or contact effects).
+A4, FTV-210 to 240 on A5 and A6, FTV-310 on A6, FTV-350 to 380 on A10, FTV-060 on A8, and the whole model on A7 (fixed
+direction in sensor axes) and A9 (no load, temperature, wear or contact effects).
