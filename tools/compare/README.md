@@ -12,6 +12,7 @@ outputs lined up. The axes are defined in [Evaluation axes](../../docs/evaluatio
 | `axis3_repeatability.cpp` | 3. Repeatability |
 | `axis4_speed.cpp` | 4. Speed (one implementation per process) |
 | `force_torque.cpp` | The force-torque sensor, axes 0, 1, 3 and 4 (Hakoniwa and Gazebo; Project AirSim has no force-torque sensor) |
+| `ft_series.cpp`, `cards_force_torque.py` | Time series of one force-torque sensor (`ft-series`) and the measurement cards of the force-torque page drawn from them (`python3 cards_force_torque.py --tool build/ft-series --out ../../docs/evaluation/force-torque --lang en`) |
 
 Axes 2 (coverage) and 5 (adoption effort) are assessments, not programs.
 
