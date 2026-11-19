@@ -2,185 +2,453 @@
 
 English | [日本語](README.ja.md)
 
-What a real sensor adds to the truth — mounting effects, noise, a per-unit offset, drift, the update period, delay,
-resolution and range — is described the same way for the gyroscope, the accelerometer, the magnetometer, the
-barometer and GPS ([common specification](../../spec/drone-common.md)): one processing order
-(truth → mounting → delay → sample → noise → drift → saturation), the same random streams and reset, the same
-Gauss-Markov drift and noise-density formulas. This page shows each of those errors on its own, sensor by sensor, and
-checks that the output follows the configured value.
+A real sensor does not report the truth as it is. It adds the effects of its mounting, a per-unit offset, noise,
+drift, its update period and delay, its resolution and its range. The gyroscope, accelerometer, magnetometer,
+barometer and GPS all define these the same way ([common specification](../../spec/drone-common.md)).
 
-## How we measure
+This page has one section per kind of error. Each section opens with a figure that explains the mechanism (drawn for
+illustration), followed by measurement cards for the sensors. The cards check that the output follows the
+configuration.
+
+## The common pipeline
+
+![The common processing order](concept-1-pipeline-en.png)
+
+The truth goes through the stages above from left to right and comes out as the measured value.
+
+- **Mounting** is done by the simulator's common parts (the host).
+- **Every other stage** is done by the sensor implementation, which applies the datasheet values one stage at a time.
+- The order of the stages and the setting keys are the same for the five sensors. Some sensors lack some stages;
+  those are the "—" in the table.
+
+## How it is measured
 
 ```text
-motion (a formula) ─▶ host helpers: mounting pose, truth ─▶ adapter (common interface) ─▶ CSV ─▶ figures
+motion (formula) ─▶ host parts: mounting, truth ─▶ adapter (common interface) ─▶ CSV ─▶ figures
 ```
 
-- **No physics engine.** A rigid body moves along a motion written as a formula: at rest, turning, a step, a ramp, a
-  climb, moving off. The host helpers of this repository (`host/sensor_host.hpp`) apply the mounting pose and build
-  the sensor truth, as a simulator host would.
-- **One error at a time.** Each run uses a configuration that turns on one error only, so a figure shows what that
-  error does and nothing else.
-- **Through the common interface.** The adapters are created by implementation name
-  (`sensor_adapter_implementation.hpp`); the tool knows nothing of the implementation behind it.
-- **Measured with:** the Hakoniwa implementation of [hakoniwa-sensor-pro](https://github.com/hakoniwalab/hakoniwa-sensor-pro)
-  v0.1.0 (the released binaries, `hakoniwa-sensor-pro-0.1.0-macos-arm64.zip`,
-  SHA-256 `82040299ea2eed32139626b8c30a787fb5bc7c44d0660f303edc2155158deb23`), macOS 27 on Apple silicon, physics
-  step 1 ms, random seed 1 unless stated.
-- **Settings:** illustrative values within the ranges of the specification, not those of a particular chip. The
-  drone sensor settings are written in the sensor's FRD axes (the Drone PRO convention); the truth and the figures are
-  in FLU.
-- **World:** Tokyo (35.6812 N, 139.7671 E, 40 m), a 46000 nT field with declination −7.5° and inclination 49.5°, the
-  standard atmosphere.
+- **No physics engine.** A rigid body follows a motion written as a formula: at rest, turning, a step, a tilt, a
+  climb, moving off. The host parts of this repository (`host/sensor_host.hpp`) apply the mounting and build the
+  sensor truth, as a simulator's host does.
+- **One error at a time.** Each run uses a configuration with a single error, so each figure shows how that error acts
+  and nothing else.
+- **Through the common interface.** The adapter is created by implementation name
+  (`sensor_adapter_implementation.hpp`). The tool does not know the implementation behind the interface.
+- **Measured:** the Hakoniwa implementation of [hakoniwa-sensor-pro](https://github.com/hakoniwalab/hakoniwa-sensor-pro)
+  v0.1.0.
+  - Public binary: `hakoniwa-sensor-pro-0.1.0-macos-arm64.zip` (SHA-256
+    `82040299ea2eed32139626b8c30a787fb5bc7c44d0660f303edc2155158deb23`)
+  - Environment: macOS 27 (Apple silicon), physics step 1 ms
+  - Random seed: 1 unless stated
+- **Configurations:** illustrative values within the ranges of the specification, not those of a particular chip. The
+  drone sensor settings are written in the sensor's FRD axes (the Drone PRO convention); the truth and the measured
+  plots are in FLU axes.
+- **World:** Tokyo.
+  - Position: 35.6812° N, 139.7671° E, 40 m
+  - Magnetic field: 46,000 nT total, declination −7.5°, inclination 49.5°
+  - Atmosphere: standard
 
-The tool, the configurations and the scripts are in [tools/error-characteristics](../../../tools/error-characteristics);
-the README there gives the build and the commands. Every figure is reproduced in about a minute.
+The tool, the configurations and the scripts are in [tools/error-characteristics](../../../tools/error-characteristics),
+with the build and the commands in its README. Every card can be redrawn in a few minutes; the concept figures are
+drawn by its `concepts/`.
 
 ## Summary
 
-| Sensor | Error | Configured | Measured |
+| Error | Sensor | Configured | Measured |
 |---|---|---|---|
-| Accelerometer | lever arm, 0.1 / 0.2 m from the centre, turning at 180°/s | −ω²r = −0.987 / −1.974 m/s² | −0.987 / −1.974 m/s² |
-| Gyroscope | white noise | σ 0.0500°/s | 0.0497°/s (5000 samples) |
-| Gyroscope | noise density 0.00024 rad/s/√Hz, period 2 / 4 / 8 ms | σ 0.00537 / 0.00379 / 0.00268 rad/s | 0.00538 / 0.00377 / 0.00266 rad/s |
-| Gyroscope / accelerometer | zero offset per unit | σ 1°/s / 20 mg | 0.999°/s / 20.3 mg (1000 units) |
-| Gyroscope | update period 4 ms; + delay 10 ms, step at 1.002 s | first change at 1.004 s; at 1.012 s | 1.004 s; 1.012 s |
-| Gyroscope | full scale 2000°/s | clipped, saturated flag | 2000.0°/s, flag from 3.500 s (truth crosses at 3.491 s) |
-| Magnetometer | white noise | σ 30 nT | 29.1 nT |
-| Magnetometer | hard iron (3000, −1500, 800) nT FRD + soft iron | centre of one turn | (2.3, 1.3) µT FLU, as computed below |
-| Magnetometer | update period 20 ms; + delay 50 ms, turn at 1.005 s | 1.020 s; 1.060 s | 1.020 s; 1.060 s |
-| Barometer | mounting 0.5 / 1.0 m higher | about −6 / −12 Pa | −5.98 / −11.97 Pa |
-| Barometer | white noise | σ 0.1 m | 0.0994 m |
-| Barometer | zero offset per unit | σ 4 m | 3.82 m (1000 units) |
-| Barometer | update period 20 ms; + delay 60 ms, step at 1.005 s | 1.020 s; 1.080 s | 1.020 s; 1.080 s |
-| Barometer | range 300 hPa | clipped near 9164 m | clipped from 9177 m |
-| GPS | antenna 0.5 m forward, turning in place | a circle of 0.5 m | radius 0.501 m |
-| GPS | position noise (horizontal) | σ 0.3 m | north 0.303 m, east 0.299 m (3000 fixes) |
-| GPS | velocity noise (horizontal) | σ 0.1 m/s | 0.102 m/s |
+| Mounting (position) | accelerometer | 0.1 / 0.2 m from the center, turning at 180°/s: −ω²r = −0.987 / −1.974 m/s² | −0.987 / −1.974 m/s² |
+| Mounting (position) | barometer | mounted 0.5 / 1.0 m higher: about −6 / −12 Pa | −5.98 / −11.97 Pa |
+| Mounting (position) | GPS | antenna 0.5 m forward, turning in place: a circle of radius 0.5 m | radius 0.501 m |
+| Zero offset | gyro / accelerometer | σ 1°/s / 20 mg | 0.999°/s / 20.3 mg (1000 units) |
+| Zero offset | barometer | σ 4 m | 3.82 m (1000 units) |
+| Iron | magnetometer | hard iron (3000, −1500, 800) nT (FRD) + soft iron: center of one turn | (2.3, 1.3) µT in FLU, as computed below |
+| Noise | gyro | σ 0.0500°/s | 0.0497°/s (5000 samples) |
+| Noise density | gyro | 0.00024 rad/s/√Hz at 2 / 4 / 8 ms: σ 0.00537 / 0.00379 / 0.00268 rad/s | 0.00538 / 0.00377 / 0.00266 rad/s |
+| Noise density | gyro | integrated for 60 s: angle error 0.106° at any period | 0.092 / 0.090 / 0.104° (100 seeds) |
+| Noise | magnetometer | σ 30 nT | 29.1 nT |
+| Noise | barometer | σ 0.1 m | 0.0994 m |
+| Noise | GPS | position (horizontal) σ 0.3 m | N 0.303 m, E 0.299 m (3000 fixes) |
+| Noise | GPS | velocity (horizontal) σ 0.1 m/s | 0.102 m/s |
+| Period and delay | gyro | period 4 ms, plus a 10 ms delay; a step at 1.002 s: changes at 1.004 s / 1.012 s | 1.004 s / 1.012 s |
+| Period and delay | magnetometer | period 20 ms, plus a 50 ms delay; a turn at 1.005 s: 1.020 s / 1.060 s | 1.020 s / 1.060 s |
+| Period and delay | barometer | period 20 ms, plus a 60 ms delay; a step at 1.005 s: 1.020 s / 1.080 s | 1.020 s / 1.080 s |
+| Range | gyro | full scale 2000°/s: clipped, saturated flag | 2000.0°/s, flag from 3.500 s (the truth exceeds it at 3.491 s) |
+| Range | barometer | 300 hPa: clipped at about 9164 m | clipped from 9177 m |
 
-A sample standard deviation over N samples has a relative standard error of about 1/√(2N): 1 % for 5000 samples,
-2 % for 1000 units. The differences above are within two of those.
+A standard deviation from N samples has a relative error of about 1/√(2N): 1 % for 5000 samples, 2 % for 1000 units.
+Every difference above is within twice that.
 
-## Gyroscope and accelerometer
+## 1. Mounting
 
-### Mounting
+![How mounting works](concept-2-mount-en.png)
 
-![IMU mounting](imu-1-mount.png)
+A mounting has two parts.
 
-Left: the body turns at 180°/s; an accelerometer 0.1 m and 0.2 m from the centre reads the centripetal acceleration
-−ω²r (dashed). Right: a turn about the body's x axis, with the IMU mounted straight and turned 90° in yaw; the turned
-sensor sees it on its −y axis. Both come from the host helpers, the same for every IMU implementation.
+- **Position:** how many meters forward, right and down from the vehicle origin. Not from the center of gravity.
+- **Orientation:** roll, pitch and yaw angles.
 
-### Noise and noise density
+When the vehicle turns, a sensor away from the origin sees extra motion: the accelerometer gets a centripetal
+acceleration, and the GPS antenna draws a circle. A turned mounting swaps the axes. The host parts do this
+computation, so it does not depend on the sensor implementation.
 
-![IMU noise](imu-2-noise.png)
+This section has five measurements. None has an error other than the mounting (truth-only configurations).
 
-Left: at rest, the gyro x values against a normal distribution of the configured σ. Right: with a noise density
-instead of a σ, the σ follows the update period, σ = density / √period ([common specification](../../spec/drone-common.md),
-4.3).
+### 1-1. An accelerometer while turning (position)
 
-### Zero offset per unit
+![An accelerometer while turning](card-mount-lever-arm-en.png)
 
-![IMU offset](imu-3-offset.png)
+- **Measured:** the vehicle keeps turning in place at 180°/s. The IMU is at the center, 0.1 m forward and 0.2 m
+  forward; the accelerometer's forward axis (x) is read in each case.
+- **How to read it:**
+  - Horizontal: time. Vertical: accelerometer x; negative is backward, toward the center of the turn.
+  - Solid lines are measured, dashed lines computed (−ω²r).
+- **Result:** −0.987 m/s² at 0.1 m and −1.974 m/s² at 0.2 m, as computed. At the center it is 0.
 
-One offset per unit, drawn at start-up and kept; 1000 units with seeds 1 to 1000.
+### 1-2. A gyro turned 90° in yaw (orientation)
 
-### Drift
+![A gyro turned 90° in yaw](card-mount-gyro-orientation-en.png)
 
-![IMU drift](imu-4-drift.png)
+- **Measured:** from 1 s the vehicle turns about its forward (x) axis at 1 rad/s. An IMU mounted straight and an IMU
+  turned 90° to the left are read on each gyro axis.
+- **How to read it:**
+  - Horizontal: time. Vertical: gyro angular rate.
+  - Blue is the straight IMU's x. The red dashed and dotted lines are the turned IMU's y and x.
+- **Result:** the straight IMU shows +1.00 on x. The turned IMU shows −1.00 on y and 0 on x: the same turn appears on
+  another axis, following the mounting.
 
-Left: Gauss-Markov drift (σ 0.005°/s, τ 100 s) of three units at rest over 30 minutes. Right: the Allan deviation of
-noise plus drift: the white noise falls with averaging (dashed line) until the drift stops it.
+### 1-3. A magnetometer turned 90° in yaw (orientation)
 
-### Update period and delay
+![A magnetometer turned 90° in yaw](card-mount-mag-orientation-en.png)
 
-![IMU period and delay](imu-5-delay-period.png)
+- **Measured:** the vehicle makes one turn in place in 4 s. A sensor mounted straight and one turned 90° are read on
+  sensor x.
+- **How to read it:**
+  - Horizontal: time. Vertical: the field on sensor x.
+  - The field points north, so turning makes sensor x a wave. A peak is when sensor x faces north.
+- **Result:** the two waves are 1.00 s (a quarter turn) apart. The turned sensor sees the same field 90° ahead.
 
-A step at 1.002 s, between two samples (the samples are at multiples of 4 ms). Left: the value is held until the next
-sample, 1.004 s. Right: with a 10 ms delay, the same samples come 10 ms late, from 1.012 s.
+### 1-4. A barometer mounted higher (position)
 
-### Resolution and range
+![A barometer mounted higher](card-mount-baro-height-en.png)
 
-![IMU resolution and range](imu-6-resolution-range.png)
+- **Measured:** with the vehicle at rest, the barometer is at the origin, 0.5 m above and 1.0 m above it.
+- **How to read it:**
+  - Vertical: the pressure minus the pressure at the origin. Negative means lower pressure.
+  - The dashed line is computed from the weight of the air (−ρ·g·h).
+- **Result:** −5.98 Pa at 0.5 m and −11.97 Pa at 1.0 m, as computed. Higher up the air is thinner and the pressure
+  lower.
 
-Left: a slow ramp becomes 0.061°/s steps. Right: the value stops at the full scale, 2000°/s, and the saturated flag is
-set from the first clipped sample.
+### 1-5. A GPS antenna mounted forward (position)
 
-## Magnetometer
+![A GPS antenna mounted forward](card-mount-gps-antenna-en.png)
 
-### Mounting, hard and soft iron
+- **Measured:** the vehicle origin does not move; the vehicle turns in place once in 8 s. With the antenna at the
+  center and 0.5 m forward, GPS is read 10 times a second.
+- **How to read it:** like a map, north up and east right. Each dot is one fix.
+- **Result:** the center antenna stays at one point. The forward antenna draws a circle of radius 0.501 m: the vehicle
+  does not move, but the antenna does.
 
-![Magnetometer mounting and iron](mag-1-mount-iron.png)
+## 2. Per-unit offset and sensitivity
 
-Left: one turn in 4 s; the sensor turned 90° in yaw sees the same field a quarter turn apart. Right: the horizontal
-field over one turn is a circle about 0; hard and soft iron shift and squash it. The settings are in FRD axes: the
-hard iron (3000, −1500) nT is (3000, +1500) nT in FLU, and the soft iron's off-diagonal terms mix the vertical field
-(about −35 µT in FLU) into x (−700 nT) and y (+175 nT in FRD): the centre is (3000 − 700, 1500 − 175) nT =
-(2.3, 1.3) µT, as measured.
+![How the per-unit offset and sensitivity work](concept-4-offset-en.png)
 
-### Noise and drift
+The **zero offset** is drawn once per unit at power-on and does not change while running. It is written as a random σ
+or as a fixed value. **Sensitivity** is the error of the output's scale (scale error) and the leak into other axes
+(cross-axis sensitivity). In the magnetometer, the vehicle's iron comes in the same two forms: hard iron is an offset,
+soft iron a sensitivity.
 
-![Magnetometer noise and drift](mag-2-noise-drift.png)
+### 2-1. The offset does not change with time
 
-Left: the noise at rest against σ 30 nT. Right: Gauss-Markov drift (σ 100 nT, τ 60 s) of three units over 30 minutes.
+![The zero offset does not change with time](card-offset-time-en.png)
 
-### Update period, delay, resolution and range
+- **Measured:** an IMU with only the offset, at rest for 10 s, with seeds 1, 2 and 5. Seed 1 is started twice and
+  measured both times.
+- **How to read it:** horizontal: time; vertical: gyro x. The truth stays 0.
+- **Result:**
+  - Every line is flat for the 10 s (change 0.000°/s).
+  - The heights differ by seed (+0.486 / −0.716 / −1.221°/s).
+  - The second start of seed 1 lies exactly on the first.
 
-![Magnetometer delay and resolution](mag-3-delay-resolution.png)
+The offset is drawn once, at start-up, and then does not change with time. This is what sets it apart from noise
+(section 3), which changes at every sample, and from drift (section 4), which moves slowly.
 
-Left: a quarter turn at once at 1.005 s; held until the next 20 ms sample, and 50 ms later with the delay. Right: a
-slow turn in 15 nT steps. With a range of 0.3 G (30 µT) the vertical component, about −35 µT, is clipped at −30 µT in
-every sample and flagged.
+The random value comes from the seed, the vehicle name and the sensor name. With the same seed, every start gives the
+same offset, so results can be reproduced. To stand for another unit or another day's start, change the seed. A value
+measured on the real part can also be written as a fixed value (`fixed…`).
 
-## Barometer
+The next two cards, 2-2 and 2-3, line up many units to see how large the offsets are. The plots are histograms.
 
-### Mounting and zero offset
+- Horizontal: the offset. Vertical: the number of units with that offset. Along the horizontal axis are units, not
+  time.
+- The red line is the shape expected with the configured σ. The bars following the red line means the configuration
+  holds.
 
-![Barometer mounting and offset](baro-1-mount-offset.png)
+### 2-2. The zero offset of 1000 IMUs
 
-Left: a sensor mounted 0.5 m and 1.0 m above the body origin reads about 6 Pa and 12 Pa less (ρ·g·h). Right: one
-zero offset per unit, in metres of altitude; 1000 units.
+![The zero offset of 1000 IMUs](card-offset-imu-en.png)
 
-### Noise and drift
+- **Measured:** 1000 IMUs with one configuration (seeds 1–1000), all level and at rest, read right after power-on. The
+  truth is 0 for the gyro and 1 g of gravity for the accelerometer.
+- **How to read it:** left, gyro x; right, accelerometer z minus 1 g. Both have a truth of 0, so the distance from 0 is
+  the unit's offset.
+- **Result:** the standard deviation over 1000 units is 0.999°/s for the gyro (configured 1°/s) and 20.3 mg for the
+  accelerometer (configured 20 mg).
 
-![Barometer noise and drift](baro-2-noise-drift.png)
+### 2-3. The zero offset of 1000 barometers
 
-Left: the noise at rest against σ 0.1 m. Right: the Allan deviation of noise plus Gauss-Markov drift (0.3 m, τ 30 s).
+![The zero offset of 1000 barometers](card-offset-baro-en.png)
 
-### Update period, delay, resolution and range
+- **Measured:** 1000 barometers with one configuration, at rest at one height (40 m).
+- **How to read it:** horizontal: the altitude computed from the measured pressure minus the true altitude. The
+  pressure offset is seen in meters of height.
+- **Result:** standard deviation 3.82 m (configured 4 m). Each unit reads its own height.
 
-![Barometer delay and resolution](baro-3-delay-resolution.png)
+### 2-4. Magnetometer iron
 
-Left: a 10 m step at 1.005 s; held until the next 20 ms sample, and 60 ms later with the delay. Right: a climb at
-5 cm/s in 0.5 Pa steps (about 4 cm). A fast climb is clipped at 300 hPa, from 9177 m of pressure altitude.
+![Magnetometer iron](card-iron-mag-en.png)
 
-## GPS
+- **Measured:** the vehicle makes one turn in place in 4 s, with the effects of its magnets (hard iron) and iron parts
+  (soft iron) configured.
+- **How to read it:** horizontal: the field on sensor x (forward); vertical: on sensor y (left). The horizontal field
+  over one turn is drawn as a path. Without iron it is a circle about 0.
+- **Result:** the circle's center moves to (2.3, 1.3) µT and the circle is slightly squashed. The center follows from
+  the configuration, matching the measurement:
+  1. The configuration is in FRD axes, so the hard iron (3000, −1500) nT is (3000, +1500) nT in FLU.
+  2. The soft iron's off-diagonal terms mix in the vertical field (about −35 µT in FLU): −700 nT into x, and +175 nT
+     into y in FRD.
+  3. So the center is (3000 − 700, 1500 − 175) nT = (2.3, 1.3) µT.
 
-### Mounting and noise
+## 3. Noise
 
-![GPS mounting and noise](gps-1-mount-noise.png)
+![How noise works](concept-3-noise-en.png)
 
-Left: turning in place, an antenna 0.5 m forward draws a circle; at the centre it stays at one point. Right: the
-position noise at rest, 10 fixes a second, against σ 0.3 m.
+Noise is a fresh value scattered around the truth at every sample, written as σ (a standard deviation). When the
+datasheet gives a noise density, that value can be written as it is; σ then follows from the period
+(σ = density ÷ √period, [common specification](../../spec/drone-common.md) 4.3).
 
-### Drift
+The histograms (3-1, 3-4) read as in section 2: horizontal, the value; vertical, how many samples had it. The bars
+following the red line means the configuration holds.
 
-![GPS drift](gps-2-drift.png)
+### 3-1. Noise of a gyro at rest
 
-Left: the fix wandering over 30 minutes with a Gauss-Markov drift (horizontal 0.5 m, τ 60 s). Right: the Allan
-deviation of north with noise plus drift.
+![Noise of a gyro at rest](card-noise-gyro-en.png)
 
-### Update period and delay
+- **Measured:** an IMU at rest, every 4 ms for 20 s (5000 samples). The truth stays 0.
+- **How to read it:** horizontal: gyro x; vertical: how many samples had that value.
+- **Result:** the standard deviation over 5000 samples is 0.0497°/s (configured 0.05°/s).
 
-![GPS delay](gps-3-delay.png)
+### 3-2. Noise density: one gyro at different periods
 
-Moving off north at 5 m/s at 1.05 s: 10 fixes a second, and the same fixes 100 ms late with the delay.
+![Noise density](card-noise-density-en.png)
 
-GPS has no resolution or range settings.
+- **Measured:** a gyro configured with a noise density of 0.00024 rad/s/√Hz instead of σ, at rest for 20 s at update
+  periods of 2, 4 and 8 ms.
+- **How to read it:** horizontal: the period; vertical: the standard deviation of the samples at that period. The
+  dashed line is computed (density ÷ √period).
+- **Result:** 0.308 / 0.216 / 0.152°/s, as computed (0.307 / 0.217 / 0.154°/s). The faster the sampling, the larger
+  each sample's spread, and the more samples there are. As a result, the integrated angle error is the same at any
+  period; 3-3 checks this.
 
-## What this does not show
+### 3-3. What noise density is for: the angle error of an integrated gyro
 
-- Agreement with a particular chip: the settings are illustrative. A chip's datasheet values can be written in the
-  same keys.
-- The other implementations (Gazebo, Project AirSim): the tool takes them by name as well; the comparison with them is
-  in [Drone sensors](../drone/README.md).
-- The IMU filter and rotor vibration, which the specification also has: not shown here yet.
+![What noise density is for](card-noise-density-angle-en.png)
+
+Summing (integrating) the gyro values gives an angle. The noise is summed too, so the angle slowly goes wrong. Summed
+noise partly cancels, so the error grows not with time but with √time.
+
+Noise density is the setting that gives this "angle error after integrating for 1 s". Its unit, rad/s/√Hz, is the same
+as rad/√s. For 0.00024 rad/s/√Hz the angle error is 0.014° after 1 s, 0.106° after 60 s and 0.83° after an hour. A
+datasheet's angle random walk (ARW, °/√h) is that hour's value.
+
+- **Measured:** a resting gyro is summed every physics step (1 ms) for 60 s into an angle, repeated with 100 seeds,
+  and the standard deviation of the angle error is taken at each time. Periods 2, 4 and 8 ms, in two configurations:
+  - fixed σ: each sample's σ written as 0.00379 rad/s (equal to the other at 4 ms)
+  - noise density: written as 0.00024 rad/s/√Hz
+- **How to read it:** horizontal: time; vertical: the standard deviation of the 100 angle errors. Solid lines are
+  measured, dashed ones computed. A standard deviation from 100 runs moves by about ±7 %.
+- **Result:**
+  - With a fixed σ (middle), the error at 60 s depends on the period: 0.065 / 0.090 / 0.147° at 2 / 4 / 8 ms. The same
+    chip would drift less just by being read faster, which a real chip does not do.
+  - With the noise density (right), the three lines nearly coincide: 0.092 / 0.090 / 0.104° (0.106° computed for
+    each). The angle drifts by the same amount however often it is read.
+
+If the sensor's period may change, write the noise as a noise density rather than σ. The datasheet value can be used
+as it is, and the integrated result stays true to the real part when the period changes.
+
+### 3-4. Noise of a magnetometer and a barometer at rest
+
+![Noise of a magnetometer and a barometer at rest](card-noise-mag-baro-en.png)
+
+- **Measured:** a magnetometer and a barometer at rest, every 20 ms for 60 s (3000 samples).
+- **How to read it:** horizontal: measured − truth; vertical: how many samples had that value. The barometer is seen
+  as altitude.
+- **Result:** standard deviations of 29.1 nT for the magnetometer (configured 30 nT) and 0.0994 m for the barometer
+  (configured 0.1 m).
+
+### 3-5. Noise of a GPS at rest
+
+![Noise of a GPS at rest](card-noise-gps-en.png)
+
+- **Measured:** a GPS at rest, 10 fixes a second for 5 minutes (3000 fixes).
+- **How to read it:** map orientation, north up and east right. Each dot is one fix; the true position is the + in the
+  middle. The solid circle is the configured σ (0.3 m), the dashed one twice that.
+- **Result:** standard deviations of 0.303 m north and 0.299 m east. About 40 % of the dots fall inside the solid
+  circle (a property of the two-dimensional normal distribution). The velocity noise is 0.102 m/s (configured
+  0.1 m/s).
+
+## 4. Drift
+
+![How drift works](concept-5-drift-en.png)
+
+Drift is a zero offset that wanders slowly. It is a first-order Gauss-Markov process written with two values: σ (how
+far it wanders) and τ (how fast it moves on) ([common specification](../../spec/drone-common.md) 4.2).
+
+This section uses Allan deviation plots. They read as follows.
+
+- Horizontal: how many seconds of values are averaged. Vertical: how much those averages differ from one to the next.
+- With noise alone, longer averaging gives a smaller spread and the plot keeps falling along the dashed line.
+- With drift, from some averaging time on the spread no longer falls, and the red line leaves the dashed one. That is
+  the time scale from which drift outweighs noise.
+
+### 4-1. Drift of a gyro at rest
+
+![Drift of a gyro at rest](card-drift-gyro-en.png)
+
+- **Measured:** IMUs at rest for 30 minutes. The middle plot has three units with drift only (σ 0.005°/s, τ 100 s);
+  the right plot one unit with noise (σ 0.05°/s) as well.
+- **How to read it:** middle: horizontal, time in minutes; vertical, gyro x (truth 0); the band is ±σ. Right: the
+  Allan deviation.
+- **Result:** all three wander around 0 over a few minutes, mostly within ±2σ. The Allan deviation leaves the dashed
+  line and levels off from about 10 s.
+
+### 4-2. Drift of a magnetometer at rest
+
+![Drift of a magnetometer at rest](card-drift-mag-en.png)
+
+- **Measured:** three magnetometers with drift only (σ 100 nT, τ 60 s), at rest for 30 minutes.
+- **How to read it:** horizontal: time in minutes; vertical: field x − truth. The band is ±σ.
+- **Result:** all three wander within about ±σ. With τ at 60 s they move back and forth faster than the gyro
+  (τ 100 s).
+
+### 4-3. Drift of a barometer at rest
+
+![Drift of a barometer at rest](card-drift-baro-en.png)
+
+- **Measured:** a barometer with noise (σ 0.1 m) and drift (σ 0.3 m, τ 30 s), at rest for 30 minutes.
+- **How to read it:** middle: the first 10 minutes, time against altitude − truth; the light line is measured, the
+  dark one 1 s averages. Right: the Allan deviation.
+- **Result:** the 1 s averages remove the noise, but the dark line keeps moving slowly by about ±0.5 m: that is the
+  drift. The Allan deviation levels off from about 0.5 s.
+
+### 4-4. Drift of a GPS at rest
+
+![Drift of a GPS at rest](card-drift-gps-en.png)
+
+- **Measured:** a GPS at rest for 30 minutes; middle with drift only (horizontal σ 0.5 m, τ 60 s), right with noise
+  (σ 0.3 m) as well.
+- **How to read it:** middle: map orientation (north up), the dot color is the time. Right: the Allan deviation of
+  north.
+- **Result:** the fix wanders slowly within about 1 m of the true position (+). The colors cluster by time because it
+  moves slowly.
+
+## 5. Period and delay
+
+![How period and delay work](concept-6-timing-en.png)
+
+A sensor measures only once per period and holds the value until the next. A delay shifts the truth, which is then
+sampled at the period, so the apparent delay lies between the delay and the delay plus one period. Samples are at
+multiples of the period from time 0.
+
+The plots in this section all read the same way.
+
+- Horizontal: time from the moment the truth changes (the red dotted line).
+- Gray is the truth, blue the measurement with the period alone, green dashed with the period plus a delay.
+- How far blue and green lie right of gray is the sensor's delay.
+
+### 5-1. Gyro (period 4 ms, delay 10 ms)
+
+![Gyro period and delay](card-timing-gyro-en.png)
+
+- **Measured:** at 1.002 s the turn about the vehicle's x goes from 0 to 1 rad/s at once. The time is chosen so that
+  the change falls between two samples (multiples of 4 ms).
+- **Result:** with the period alone, the value changes at the next sample, 1.004 s (+2 ms). With the 10 ms delay it
+  changes at 1.012 s (+10 ms): the shifted truth changes at 1.012 s, which is exactly a sample.
+
+### 5-2. Magnetometer (period 20 ms, delay 50 ms)
+
+![Magnetometer period and delay](card-timing-mag-en.png)
+
+- **Measured:** at 1.005 s the heading jumps by 90°.
+- **Result:** 1.020 s (+15 ms) with the period alone, 1.060 s (+55 ms) with the delay.
+
+### 5-3. Barometer (period 20 ms, delay 60 ms)
+
+![Barometer period and delay](card-timing-baro-en.png)
+
+- **Measured:** at 1.005 s the height jumps by 10 m.
+- **Result:** 1.020 s (+15 ms) with the period alone, 1.080 s (+75 ms) with the delay.
+
+### 5-4. GPS (period 100 ms, delay 100 ms)
+
+![GPS period and delay](card-timing-gps-en.png)
+
+- **Measured:** at 1.05 s the vehicle moves off north at 5 m/s.
+- **How to read it:** vertical: the north position. The truth (gray) rises smoothly; the measurements are steps
+  every 100 ms.
+- **Result:** the blue steps sit on the truth at each sample. The green steps keep showing the position 100 ms
+  earlier, 0.5 m behind.
+
+## 6. Resolution and range
+
+![How resolution and range work](concept-7-range-en.png)
+
+These are the last two stages: the value is rounded to the resolution step, then clipped to the range. Neither does
+anything when not written. GPS has neither.
+
+### 6-1. Gyro resolution (0.061°/s steps)
+
+![Gyro resolution](card-resolution-gyro-en.png)
+
+- **Measured:** the turn about the vehicle's x grows slowly, by 0.57°/s every second (0.5 s). The resolution is
+  0.061°/s, the step of a 16-bit, ±2000°/s chip.
+- **How to read it:** horizontal: time; vertical: gyro x. Gray is the truth, red the measurement.
+- **Result:** the smooth change becomes steps of 0.061°/s. A change smaller than a step does not show.
+
+### 6-2. Gyro range (±2000°/s)
+
+![Gyro range](card-range-gyro-en.png)
+
+- **Measured:** the turn about the vehicle's x grows faster and faster, by 573°/s every second (5 s).
+- **How to read it:** the gray dashed line is the truth, red the measurement. The vertical dotted line is when the
+  saturated flag is set.
+- **Result:** the measurement stops at 2000°/s and nothing beyond shows. The saturated flag is set from the first
+  clipped sample (3.500 s); the truth exceeds 2000°/s at 3.491 s, just before that sample.
+
+### 6-3. Magnetometer resolution and range (15 nT steps, ±0.3 G)
+
+![Magnetometer resolution and range](card-resolution-range-mag-en.png)
+
+- **Measured:** the vehicle turns very slowly (0.7° in 6 s). The resolution is 15 nT and the range ±0.3 G (±30 µT).
+- **How to read it:** middle: the field on sensor y; right: on sensor z (vertical).
+- **Result:** y becomes steps of 15 nT. The truth of z is about −35 µT, beyond the range (−30 µT), so every sample is
+  clipped to −30 µT and flagged. This is what a range set too narrow does.
+
+### 6-4. Barometer resolution and range (0.5 Pa steps, 300–1100 hPa)
+
+![Barometer resolution and range](card-resolution-range-baro-en.png)
+
+- **Measured:** middle, a slow climb at 5 cm/s; right, a fast climb at 2000 m/s (an impossible speed, to reach the
+  range).
+- **How to read it:** middle: altitude above the start; right: altitude in km.
+- **Result:** the slow climb becomes steps of 0.5 Pa (about 4 cm). The fast climb stops at 9177 m, where the pressure
+  reaches the lower limit of 300 hPa.
+
+## Not shown on this page
+
+- **Measured sensitivity (scale error, cross-axis):** only the concept figure. The magnetometer's soft iron is measured
+  in section 2.
+- **A match with a particular chip:** the configurations are illustrative. A chip's datasheet values go into the same
+  keys.
+- **Other implementations (Gazebo, Project AirSim):** the tool selects the implementation by name. The comparison with
+  other implementations is in [Drone sensors](../drone/README.md).
+- **The specification's IMU filter and rotor vibration:** not shown yet.

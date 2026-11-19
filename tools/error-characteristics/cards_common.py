@@ -1,8 +1,8 @@
 """Shared by the measurement cards (cards_*.py): a card is one measurement, a sketch of how the sensor was mounted
 and moved on the left and the result on the right, with the axes and the expected values written on the plot.
 
-The data come from runs of the error-characteristics tool (ec_common.run), the same runs as imu_figures.py and
-mag_baro_gps_figures.py. The tool's --mount is in body FLU axes: x forward, y left, z up. The cards are in Japanese.
+The data come from runs of the error-characteristics tool (ec_common.run). The tool's --mount is in body FLU axes: x forward, y left, z up. The cards are drawn in
+Japanese or English (--lang); every text goes through L(ja, en), and the file name ends in -ja or -en.
 """
 import argparse
 import tempfile
@@ -21,6 +21,12 @@ HIST = "#f2b8bd"
 EARTH_R = 6378137.0
 LAT0, LON0 = 35.6812, 139.7671
 DEG = np.pi / 180.0
+LANG = ["ja"]
+
+
+def L(ja, en):
+    """The text in the language of this run."""
+    return ja if LANG[0] == "ja" else en
 
 
 def arrow(ax, a, b, color=INK, lw=1.6, style="-|>", scale=14, **kw):
@@ -56,12 +62,12 @@ def chip(ax, xy, color, size=0.05, label=None, **text):
                 va=text.pop("va", "center"), **text)
 
 
-def sketch_axes(ax, xlim=(-0.45, 0.45), ylim=(-0.42, 0.5), title="測り方"):
+def sketch_axes(ax, xlim=(-0.45, 0.45), ylim=(-0.42, 0.5), title=None):
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_aspect("equal")
     ax.axis("off")
-    ax.set_title(title, fontsize=11, color=INK, loc="left")
+    ax.set_title(title or L("測り方", "Setup"), fontsize=11, color=INK, loc="left")
 
 
 def notes(ax, lines, y=-0.3, x=None, size=8.5, color=MUTED):
@@ -83,15 +89,17 @@ def result_title(ax, text):
     ax.set_title(text, fontsize=11, color=INK, loc="left")
 
 
-def hist_against_sigma(ax, values, sigma, bins=50, label="測った値", count_label="その値が出た回数"):
+def hist_against_sigma(ax, values, sigma, bins=50, label=None, count_label=None):
     """A histogram of the measured values against the normal distribution of the configured sigma."""
     values = np.asarray(values)
-    _, edges, _ = ax.hist(values, bins=bins, color=HIST, label=f"{label}（標準偏差 {values.std():.3g}）")
+    label = label or L("測った値", "measured")
+    _, edges, _ = ax.hist(values, bins=bins, color=HIST,
+                          label=L(f"{label}（標準偏差 {values.std():.3g}）", f"{label} (standard deviation {values.std():.3g})"))
     width = edges[1] - edges[0]
     x = np.linspace(-4 * sigma, 4 * sigma, 300)
     ax.plot(x, values.size * width * np.exp(-0.5 * (x / sigma) ** 2) / (sigma * np.sqrt(2 * np.pi)), color=C2, lw=2,
-            label=f"設定 σ = {sigma:g} なら、こう出るはず")
-    ax.set_ylabel(count_label)
+            label=L(f"設定 σ = {sigma:g} なら、こう出るはず", f"expected with the configured σ = {sigma:g}"))
+    ax.set_ylabel(count_label or L("その値が出た回数", "count"))
     top = ax.get_ylim()[1]
     ax.set_ylim(0, top * 1.25)
     ax.legend(loc="upper left", fontsize=8.3)
@@ -99,7 +107,7 @@ def hist_against_sigma(ax, values, sigma, bins=50, label="測った値", count_l
 
 def save(fig, args, name):
     fig.tight_layout(rect=(0, 0, 1, 0.94))
-    path = Path(args.out) / f"{name}.png"
+    path = Path(args.out) / f"{name}-{LANG[0]}.png"
     fig.savefig(path, dpi=110)
     plt.close(fig)
     print(f"wrote {path}")
@@ -127,7 +135,9 @@ def main(doc, makers):
     parser.add_argument("--only", nargs="*", help="cards to make, by function name")
     parser.add_argument("--work", help="where the tool's CSV files go (default: a temporary directory), so that --out can be "
                                        "the documentation folder")
+    parser.add_argument("--lang", choices=["ja", "en"], default="ja")
     args = parser.parse_args()
+    LANG[0] = args.lang
     args.work = args.work or tempfile.mkdtemp(prefix="error-cards-")
     Path(args.out).mkdir(parents=True, exist_ok=True)
     for make in makers:

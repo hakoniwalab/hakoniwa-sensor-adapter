@@ -1,9 +1,9 @@
-"""Draws the concept figures of the error-characteristics pages (Japanese for now).
+"""Draws the concept figures of the error-characteristics pages, in Japanese and/or English.
 
-    python3 make_all.py --out <dir>
+    python3 make_all.py --out <dir> [--lang ja|en|both]
 
-The figures explain one stage of the common processing order each; their data are illustrative, made with numpy,
-not measured. The measured figures are made by ../imu_figures.py and ../mag_baro_gps_figures.py.
+Writes concept-<n>-<name>-<lang>.png. The figures explain one stage of the common processing order each; their
+data are illustrative, made with numpy, not measured. The measurement cards are made by ../cards_*.py.
 Needs numpy, matplotlib and a Japanese font (Hiragino Sans on macOS).
 """
 import argparse
@@ -12,18 +12,20 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-FIGURES = [("pipeline", "concept-1-pipeline-ja"), ("mount", "concept-2-mount-ja"), ("noise", "concept-3-noise-ja"),
-           ("offset", "concept-4-offset-ja"), ("drift", "concept-5-drift-ja"), ("timing", "concept-6-timing-ja"),
-           ("range", "concept-7-range-ja")]
+FIGURES = ["pipeline", "mount", "noise", "offset", "drift", "timing", "range"]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", required=True)
+    parser.add_argument("--lang", choices=["ja", "en", "both"], default="both")
     args = parser.parse_args()
+    langs = ["ja", "en"] if args.lang == "both" else [args.lang]
     Path(args.out).mkdir(parents=True, exist_ok=True)
-    for script, name in FIGURES:
-        subprocess.run([sys.executable, str(HERE / f"{script}.py"), str(Path(args.out) / f"{name}.png")], check=True)
+    for lang in langs:
+        for n, script in enumerate(FIGURES, start=1):
+            out = Path(args.out) / f"concept-{n}-{script}-{lang}.png"
+            subprocess.run([sys.executable, str(HERE / f"{script}.py"), str(out), lang], check=True)
 
 
 if __name__ == "__main__":
