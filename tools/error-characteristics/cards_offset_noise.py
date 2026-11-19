@@ -191,6 +191,56 @@ def noise_density(args):
     save(fig, args, "card-noise-density")
 
 
+def integrated_angle(args, config, seeds, duration):
+    """Runs a resting gyro once per seed and integrates gyro x every physics step (1 ms), as an attitude estimator
+    would. Returns the time and, per time, the standard deviation of the angle over the seeds, in degrees."""
+    import subprocess
+    from pathlib import Path
+    from ec_common import HERE
+    out = Path(args.work) / "csv" / "angle.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    angles = []
+    for seed in seeds:
+        subprocess.run([args.tool, "--implementation", args.implementation, "--sensor", "imu", "--config",
+                        str(HERE / "config" / "imu" / config), "--motion", "rest", "--duration", str(duration),
+                        "--seed", str(seed), "--out", str(out)], check=True, capture_output=True)
+        data = np.loadtxt(out, delimiter=",", skiprows=1, usecols=(0, 8))  # time, gx
+        angles.append(np.cumsum(data[:, 1]) * 0.001)
+    return data[:, 0], np.std(np.array(angles), axis=0) / DEG
+
+
+def noise_density_angle(args):
+    density = 0.00024
+    sigma = density / np.sqrt(0.004)
+    duration, seeds = 60.0, range(1, 101)
+    fig, left, r1, r2 = card("ノイズ密度の意味：ジャイロを積分した角度のずれ", right=2)
+    sketch_axes(left, xlim=(-0.5, 0.5), ylim=(-0.45, 0.5))
+    airframe(left, alpha=0.6, centre=(0, 0.2))
+    chip(left, (0, 0.2), C1, size=0.05)
+    left.text(0, 0.45, "静止したジャイロの値を 60 秒足し合わせる（積分）", fontsize=10, color=INK, ha="center")
+    left.text(0, 0.0, "真の角度はずっと 0。ずれはノイズが積もった分", fontsize=9, color=INK, ha="center")
+    notes(left, ["周期 2 / 4 / 8 ms の 3 通り × 設定 2 通り。それぞれ乱数の種 100 個",
+                 "縦軸：100 回の角度のずれの標準偏差",
+                 f"σ 固定：\"noise\" {sigma:.5f} rad/s（4 ms で右と同じになる値）",
+                 f"ノイズ密度：\"noiseDensity\" {density} rad/s/√Hz"], y=-0.1)
+    top = 0.0
+    for ax, kind, title in ((r1, "sigma", "σ 固定：周期で変わってしまう"), (r2, "density", "ノイズ密度：周期によらず同じ")):
+        for ms, color in ((2, C2), (4, C1), (8, C3)):
+            t, s = integrated_angle(args, f"noise-{kind}-{ms}ms.json", seeds, duration)
+            ax.plot(t, s, color=color, lw=2, label=f"周期 {ms} ms：60 秒で {s[-1]:.3f}°")
+            expected = (sigma * np.sqrt(ms * 1e-3 * t) if kind == "sigma" else density * np.sqrt(t)) / DEG
+            ax.plot(t, expected, color=color, lw=0.9, ls="--")
+            top = max(top, s.max())
+        ax.set_xlabel("時間 [s]")
+        ax.set_ylabel("積分した角度のずれ（標準偏差）[°]")
+        result_title(ax, title)
+        ax.legend(loc="upper left", fontsize=8.3, title="実線：測定　破線：計算", title_fontsize=8)
+        ax.grid(alpha=0.3)
+    for ax in (r1, r2):
+        ax.set_ylim(0, top * 1.35)
+    save(fig, args, "card-noise-density-angle")
+
+
 def noise_mag_baro(args):
     m = sampled(run(args, "mag", "noise", "noise.json", "rest", 60.0))
     b = sampled(run(args, "baro", "noise", "noise.json", "rest", 60.0))
@@ -233,4 +283,4 @@ def noise_gps(args):
 
 
 if __name__ == "__main__":
-    main(__doc__, [offset_time, offset_imu, offset_baro, iron_mag, noise_gyro, noise_density, noise_mag_baro, noise_gps])
+    main(__doc__, [offset_time, offset_imu, offset_baro, iron_mag, noise_gyro, noise_density, noise_density_angle, noise_mag_baro, noise_gps])
