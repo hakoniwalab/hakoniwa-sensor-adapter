@@ -28,6 +28,40 @@ def units_sketch(ax, color, label, rows=3, cols=6):
 
 
 # ------------------------------------------------------------------------------------------------ 2. offset and iron
+def offset_time(args):
+    """The offset is one value per start-up: constant in time, the same again with the same seed."""
+    fig, left, right = card("零点のずれ：時間がたっても変わらない")
+    sketch_axes(left, xlim=(-0.5, 0.5), ylim=(-0.45, 0.5))
+    colors = (C1, C2, C3)
+    seeds = (1, 2, 5)  # three units whose offsets lie apart, so the lines can be told apart
+    for k, (seed, color) in enumerate(zip(seeds, colors)):
+        x = -0.28 + 0.28 * k
+        airframe(left, size=0.1, alpha=0.6, centre=(x, 0.2))
+        chip(left, (x, 0.2), color, size=0.04)
+        left.text(x, 0.06, f"乱数の種 {seed}", fontsize=9, color=color, ha="center", va="top")
+    left.text(0, 0.45, "静止した IMU を 10 秒測る", fontsize=10, color=INK, ha="center")
+    notes(left, ["設定：ジャイロの零点のずれ σ 1°/s（\"randomStdDegPerSec\"）だけ",
+                 "種 1 は 2 回起動して、2 回とも測る",
+                 "真値はずっと 0。ノイズは入れない"], y=-0.06)
+    right.axhline(0, color=MUTED, lw=2.5, label="真値（0）")
+    for seed, color in zip(seeds, colors):
+        d = sampled(run(args, "imu", f"offset-time-{seed}", "offset.json", "rest", 10.0, seed=seed), "gyro_updated")
+        g = d["gx"] / DEG
+        right.plot(d["time"], g, color=color, lw=2.2, label=f"種 {seed}")
+        right.text(10.2, g[-1], f"{g[-1]:+.3f}°/s（10 秒で変化 {g.max() - g.min():.3f}）", fontsize=8.5, color=color,
+                   va="center")
+    again = sampled(run(args, "imu", "offset-time-1-again", "offset.json", "rest", 10.0, seed=1), "gyro_updated")
+    right.plot(again["time"], again["gx"] / DEG, color=C0, lw=1.2, ls=(0, (2, 3)), label="種 1 の 2 回目の起動（重なる）")
+    right.set_xlim(0, 15.5)
+    right.set_ylim(-1.8, 1.9)
+    right.set_xlabel("時間 [s]")
+    right.set_ylabel("ジャイロ x の値 [°/s]（真値は 0）")
+    result_title(right, "結果：個体ごとに違う高さの、まっすぐな線")
+    right.legend(loc="upper left", fontsize=8.3, ncol=2)
+    right.grid(alpha=0.3)
+    save(fig, args, "card-offset-time")
+
+
 def offset_imu(args):
     gyro, accel = [], []
     for seed in SEEDS:
@@ -199,4 +233,4 @@ def noise_gps(args):
 
 
 if __name__ == "__main__":
-    main(__doc__, [offset_imu, offset_baro, iron_mag, noise_gyro, noise_density, noise_mag_baro, noise_gps])
+    main(__doc__, [offset_time, offset_imu, offset_baro, iron_mag, noise_gyro, noise_density, noise_mag_baro, noise_gps])
