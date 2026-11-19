@@ -83,23 +83,36 @@ density_i = c_i · activity^p_b
 
 This covers the 64–350 times rise of the 40–300 Hz floor in the data.
 
-## 4. Where it sits: a host helper
+## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
 ```text
-joint velocities ─▶ ForceTorqueVibration (host helper) ─▶ vibration wrench
-true wrench (physics) ──────────────────────────────┴─(+)─▶ ForceTorqueTruth ─▶ any force-torque adapter
+joint velocities ─▶ force-torque vibration model ─▶ vibration wrench
+true wrench (physics) ───────────────────────────┴─(+)─▶ ForceTorqueTruth ─▶ any force-torque adapter
 ```
 
-A sketch of the helper (names not final):
+- **Position:** on the host side, in front of the adapter. The vibration is added to the truth, so
+  `ForceTorqueTruth` and every adapter stay as they are, and the same vibration can be put in front of any
+  implementation (Gazebo too).
+- **Public (this repository):** this design, the configuration and the requirements, and an interface header for the
+  model, so that hosts and tools can call it and other implementations can provide one.
+- **Private (Sensor PRO):** the implementation, delivered as binaries like the sensor models.
+- **Reached by name:** a host gets the model from an implementation by name, through an entry point of its own
+  (for example `HAKO_SENSOR_HOST_MODEL_ENTRY(hakoniwa)`). `SensorAdapterImplementation` is not extended, so binaries
+  built against the current header keep working; an implementation without the model simply has no such entry.
+
+A sketch of the interface (names not final):
 
 ```cpp
-class ForceTorqueVibration {
+class IForceTorqueVibration {
 public:
-    bool configure(const std::string& path, std::uint64_t seed, std::string& error);  // section 6
-    void reset();                                                                       // phases, filters, streams
-    // One physics step: joint velocities [rad/s] in the order of the configuration; returns the wrench to add.
-    Wrench step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity);
+    virtual ~IForceTorqueVibration() = default;
+    // One physics step: joint velocities [rad/s] in the order of the configuration; returns the wrench to add,
+    // in sensor axes.
+    virtual bool step(std::uint64_t sim_time_ns, const std::vector<double>& joint_velocity, Wrench& out,
+                      std::string& error) = 0;
+    virtual bool reset(std::string& error) = 0;  // phases, filters, random streams back to creation
 };
+// Created from a configuration file (section 6), the physics step and a seed.
 ```
 
 Its random streams follow the common derivation (seed, vehicle, sensor, characteristic), so the same seed gives the
@@ -147,12 +160,13 @@ fitted; the orders cannot be told apart from modes. A data set with several spee
 
 ## 8. Open questions
 
-1. **Where the model lives — decided (2026-11-19): a host helper in this repository.** It computes the vibration
-   wrench from the joint velocities and adds it to the truth before the adapter, like the drone rotor vibration.
-   The interface (`ForceTorqueTruth`) does not change, so existing implementations and binaries keep working, and the
-   same vibration can be added in front of any implementation (Gazebo too), which keeps comparisons fair.
-   (Rejected: inside the adapter, which would add the joint velocities to `ForceTorqueTruth`, an interface and
-   binary change.)
+1. **Where the model lives — decided (2026-11-19): in front of the adapter, implemented in Sensor PRO.** It
+   computes the vibration wrench from the joint velocities and adds it to the truth, like the drone rotor vibration.
+   The specification and the interface header are public; the implementation is private and ships as binaries
+   (section 4). `ForceTorqueTruth` and `SensorAdapterImplementation` do not change, so existing implementations and
+   binaries keep working, and the same vibration can be added in front of any implementation (Gazebo too), which
+   keeps comparisons fair. (Rejected: inside the adapter, which would add the joint velocities to
+   `ForceTorqueTruth`, an interface and binary change.)
 2. Whether amplitudes are configured per sensor axis directly (simple, as above) or as a force direction per joint
    mapped through the arm geometry (more physical, needs the kinematics).
 3. Whether the IMU of an arm (end-effector accelerometer) gets the same model.
