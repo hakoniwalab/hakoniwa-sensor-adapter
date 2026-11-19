@@ -22,19 +22,32 @@ their noise is Gaussian plus bias or drift at most. ArduPilot SITL drives IMU vi
 
 ## 2. What the literature establishes
 
-- Strain-wave (harmonic drive) gearing produces error and torque ripple at 2× the wave-generator (motor) speed and its
-  harmonics (4×, 6×); motor control places suppression filters there [1][2]. Measurements also show 1× and 4×
-  components and little gear-mesh content [3][4]. Kinematic error is periodic in shaft angle and largely
-  independent of speed [5].
-- The frequency of these components follows motor speed; speed-scheduled notch filters set their centre in
-  proportion to rotation speed [6][7]. Order tracking (resampling at constant shaft-angle steps) is the standard way to
-  analyse them under varying speed [8].
-- The amplitude seen at the tool is not monotone in speed: speed-synchronous transmission error excites the arm's
-  structural resonance when a harmonic crosses it (about 22 Hz on a 6-axis industrial robot) [9].
-- Rigid-body compensation (gravity and inertia of the payload) is established [10][11][12]; it removes the slow,
-  deterministic part, not the vibration. Learned compensation from joint states also targets the slow part [13][14].
-- Collision detection uses thresholds that grow with joint velocity [15][16], an indirect sign that disturbances grow
-  with speed.
+Checked in full on 2026-11-19 unless marked †.
+
+- Strain-wave (harmonic drive) gearing produces error and torque ripple at **2× the wave-generator (motor) rotation
+  and its even harmonics**:
+  - [1] describes a disturbance "of two cycles per motor revolution and its higher harmonics", with band-pass
+    filters at 2×, 4× and 6× the motor frequency.
+  - [9] models the synchronous transmission error as the 2nd and 4th harmonics of the motor angle.
+  - [6] states that the reducer of a robot joint "vibrates at double the frequency of the rotation speed of the
+    motor".
+  - [3] reports the wave-generator rotation frequency 1× in the axial direction and 4× in the circumferential
+    direction.
+  - "Little gear-mesh content" [4] † could not be read.
+- **The frequency follows motor speed:**
+  - [6] sets a notch centre at twice the motor speed.
+  - [7] makes the notch centre "change linearly with the angular velocity" (a rotating machine, not a robot).
+  - Order tracking by equal-angle resampling is used for robot reducers under varying speed [8] † (abstract only).
+- **The amplitude is roughly constant with speed:**
+  - [6] states the vibration amplitude "is approximately constant regardless of the rotation speed of the motor".
+  - [9] models the error with fixed angle amplitudes.
+- **Resonance amplifies it.** It grows when a harmonic k·f_m meets a structural frequency [1][3][9]. On a 6-axis
+  industrial robot [9], the tip vibration is excited near 12 Hz (11.5–11.8 Hz, the anti-resonance seen from the
+  motor, which is the arm with the motor held). 22 Hz is the motor-side resonance.
+- Rigid-body compensation (gravity and inertia of the payload) is established [10][11][12] †. It removes the slow,
+  deterministic part, not the vibration. Learned compensation from joint states also targets the slow part
+  [13][14] †.
+- Collision detection uses thresholds that grow with joint velocity [15][16] †.
 
 ## 3. Model
 
@@ -53,7 +66,7 @@ Each listed order k of joint j adds, on each sensor axis i,
 
 ```text
 w_i += A_{j,k,i}(f_m,j) · sin(k · φ_j + θ_{j,k,i})
-A    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k}   for f_m,j ≥ f_dead,j, otherwise 0
+A    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k}   for f_m,j ≥ f_dead,j, otherwise 0     (default p = 0: constant [6][9])
 ```
 
 Following the phase rather than the frequency keeps the tone continuous when the speed changes (order tracking).
@@ -148,15 +161,16 @@ Per-axis values use the same keys as the rest of the force-torque configuration 
 
 ## 7. Fitting from data
 
-1. Record at rest, then the same motion at three or four speeds (at least two).
+1. Record at rest, then the same motion at three or four speeds (at least two), or one motion whose acceleration and deceleration sweep the speed.
 2. Spectrogram against motor frequency N·|q̇|: lines whose frequency moves with speed are orders, fixed lines are
    modes.
 3. Orders: fit a and p from the line amplitude at each speed. Modes: f_n and ζ from the peak, s0 at rest, s1 from the
    speeds. Broadband: c and p_b from the floor at each speed.
 4. Validate on a motion or speed not used for fitting.
 
-With Zenodo 11096791 alone (one speed) the modes, the at-rest levels and the broadband level at that speed can be
-fitted; the orders cannot be told apart from modes.
+Zenodo 11096791 has one cruise speed, but its acceleration and deceleration sweep the speed, which is enough to
+tell orders from modes (section 7.1); the at-rest levels and the broadband level are fitted at that one cruise
+speed.
 
 Open data sets checked on 2026-11-19 (landing pages and file listings only). None has a wrist F/T at 500 Hz or more,
 joint states, and the same motion at two or more speeds:
@@ -173,6 +187,24 @@ Others were rejected for a low rate (100–125 Hz controller-estimated TCP force
 access or a paid licence. A clean separation of orders and modes most likely needs our own recording: rest, then the
 same motion at two or more speeds, with a wrist F/T at 500 Hz or more and the joint velocities.
 
+### 7.1 What one recording already showed (2026-11-19)
+
+The free rotation of Zenodo 11096791 (about 180° in 5 s) accelerates for about 1.3 s, cruises at about 45°/s and
+decelerates for about 1 s. Short-time spectra of all six axes, tracked against the rotation speed (from the
+orientation records), show:
+
+- The strongest line between 8 and 60 Hz moves in proportion to speed: about 19 Hz at 20°/s, 40 Hz at 45°/s.
+  - The correlation is 0.973.
+  - The slope through the origin gives order × gear ratio = 324, that is order 2 with a gear ratio of about 162.
+  - 152 of 154 short windows lie within ±3 Hz of order 2 with a ratio of 160.
+- At cruise speed, a comb at 40.0, 80.0, 120.4, 160.8, 200.8, 241.5 and 281.5 Hz: the order-2 line and its multiples.
+- Lines near 33 Hz and 100 Hz stay at the same frequency in acceleration, cruise and deceleration: mode candidates.
+- In the runs with hammer taps and a push, the taps and the push dominate the low band at times. Where the line shows,
+  it lies on the same slope.
+
+So a single motion with acceleration and deceleration can separate orders from modes; separate recordings at two
+speeds are not required.
+
 ## 8. Scope and assumptions
 
 The model is a simplification on purpose. Its assumptions are numbered so that results can say which ones they rely
@@ -183,8 +215,8 @@ first version).
 | ID | Assumption | Evidence | How to check | If wrong |
 |---|---|---|---|---|
 | VIB-A1 | The sensor's own white noise is independent of the motion | measured at rest only (Zenodo 11096791) | rest vs motion at a frequency free of vibration | the sensor noise has to grow with motion as well |
-| VIB-A2 | Order frequencies are integer multiples k of the motor rotation frequency N·\|q̇\|/2π | literature [1][6][7] | two speeds of the same motion: lines move in proportion | the orders are fixed modes, or the gear ratio is wrong |
-| VIB-A3 | Order amplitude follows a · (f_m / f_ref)^p, zero below a dead band | inferred | three or more speeds | a table of amplitude vs speed replaces the power law |
+| VIB-A2 | Order frequencies are integer multiples k of the motor rotation frequency N·\|q̇\|/2π | literature [1][6][9]; **measured** on Zenodo 11096791 (section 7.1), with the gear ratio inferred | the line frequency against speed, within one motion (acceleration, cruise, deceleration) or at several speeds | the orders are fixed modes, or the gear ratio is wrong |
+| VIB-A3 | Order amplitude follows a · (f_m / f_ref)^p, zero below a dead band; p = 0 by default | literature for p = 0 [6][9]; dead band and p ≠ 0 inferred | amplitude of the tracked line against speed | a table of amplitude vs speed replaces the power law |
 | VIB-A4 | Order phases are random per unit and constant | simplification | phase is not observable in a PSD | none for spectra; matters only for time-domain matching |
 | VIB-A5 | Structural modes have fixed frequency and damping, independent of arm pose | simplification | two poses at rest | mode frequency becomes a function of pose |
 | VIB-A6 | The broadband rise grows with activity = Σ f_m / f_ref | inferred | floor at two or more speeds | another activity measure (max, per joint) |
@@ -198,8 +230,11 @@ rise with motion, reproducible from a seed.
 **Out of scope (first version):** load- and temperature-dependent vibration, vibration caused by contact or impacts,
 pose-dependent modes, non-stationary changes (wear), and the vibration of the arm's IMU (section 9, question 3).
 
-**Known gaps against the real data now:** with one speed only, the 40, 90 and 200 Hz peaks of the rotating arm cannot
-be assigned to orders (VIB-A2) or modes (VIB-A5); any assignment is an inference and is reported as such.
+**Known gaps against the real data now:**
+- The gear ratio of the rotating joint is not documented; 160 (order 2) is inferred from the fitted slope.
+- The joint that turned is not identified beyond "about the sensor y axis".
+- Lines that stay at the same frequency in every speed phase (near 33 and 100 Hz) are taken as mode candidates
+  (VIB-A5) by inference.
 
 ## 9. Open questions
 
@@ -216,21 +251,30 @@ be assigned to orders (VIB-A2) or modes (VIB-A5); any assignment is an inference
 
 ## References
 
-Links as found on 2026-11-19. Items marked † were not opened in full; the summary comes from the abstract or the
-search result.
+Read in full on 2026-11-19 unless marked †; † items were not opened in full (abstract or search result only).
 
-1. Sanyo Denki, Technical Report TR5e (1998): ripple suppression at 2×, 4×, 6× motor frequency in strain-wave
-   drives. <https://sanyodenki.com/archive/document/corporatedata/technicalreport/1998/TR5e_s_en.pdf> †
+1. M. Itoh, "Self-Compensating Control for Suppression of Rotational Speed Variation Generated in a Geared Servo
+   System", SANYO DENKI Technical Report No. 5, May 1998.
+   <https://sanyodenki.com/archive/document/corporatedata/technicalreport/1998/TR5e_s_en.pdf>
 2. Lu et al., Electrical Engineering (Springer), 2× torque ripple of a harmonic drive.
    <https://link.springer.com/article/10.1007/s00202-012-0264-4> †
-3. Vibration test of a harmonic drive: 1×, 4× of the wave generator, resonance near 30 Hz. <https://extrica.com/article/19378> †
-4. Harmonic drive dynamic model, little gear-mesh content. MDPI Machines 13(12). <https://www.mdpi.com/2075-1702/13/12/1083> †
-5. Shi et al., kinematic error of harmonic drives as position harmonics, largely speed independent. † (no stable link found)
-6. US 2016/0016310, notch filter centre proportional to rotation speed. <https://uspto.report/patent/app/20160016310> †
-7. WO 2004/029634 A2, speed-scheduled notch filter. <https://patents.google.com/patent/WO2004029634A2/en> †
-8. Order tracking of robot cycloid reducers, Jixie Chuandong (2022). <https://doaj.org/article/aea9ea0fbecd4a42a33576a443403b61> †
-9. Iwasaki and Nakamura, IFAC 2014: speed-synchronous transmission error exciting the resonance of a 6-axis robot.
-   <https://skoge.folk.ntnu.no/prost/proceedings/ifac2014/media/files/0659.pdf> †
+3. J. Tan, D. Shi, D. Huang, J. Gu, "Test and analysis of three axis vibration of harmonic drives", Vibroengineering
+   PROCEDIA 16, 19–24, 2017. DOI 10.21595/vp.2017.19378. <https://extrica.com/article/19378>
+4. G. He, B. Zhou, Y. Zheng, H. Lin, L. Xu, Z. Zheng, "Unraveling the Vibration Mechanism in Robotic Harmonic Drive:
+   Coupled Dynamics Under Cyclic Inertial Loading and Installation Errors", Machines 13(12):1083, 2025.
+   DOI 10.3390/machines13121083. † (site blocked automated access)
+5. Shi et al., kinematic error of harmonic drives as position harmonics, largely speed independent. † (no stable
+   link found)
+6. F. Zhao, T. Mamba (Yaskawa Electric), "Notch filter, external force estimator, motor control apparatus, and robotic
+   system", US 2016/0016310 A1, 2016. <https://patents.google.com/patent/US20160016310A1/en>
+7. D. H. Carlson (3M), "Adaptable spatial notch filter", WO 2004/029634 A2, 2004.
+   <https://patents.google.com/patent/WO2004029634A2/en>
+8. M. Lin, X. Zhang, L. Yao, Y. Gong, J. Zhang, Y. Yang, "Application of Order Tracking Analysis Method in Fault
+   Diagnosis of Swing Fatigue Tests of Precision Reducers for Robots", Jixie Chuandong 46 (2022), 156–162.
+   DOI 10.16578/j.issn.1004.2539.2022.10.024. † (abstract only)
+9. M. Iwasaki, H. Nakamura, "Vibration Suppression for Angular Transmission Errors in Harmonic Drive Gearings and
+   Application to Industrial Robots", Proc. 19th IFAC World Congress, Cape Town, 2014.
+   <https://skoge.folk.ntnu.no/prost/proceedings/ifac2014/media/files/0659.pdf>
 10. Kubus, Kröger and Wahl, IROS 2008: payload inertial parameters for F/T compensation (used by ROS
     force_torque_tools). <https://index.ros.org/r/force_torque_tools/> †
 11. Lund University: accelerometer and force sensor fusion. <https://lup.lub.lu.se/search/files/5836402/625573.pdf> †
@@ -241,7 +285,6 @@ search result.
 15. Sotoudehnejad and Kermani, ICRA 2014 and thesis: velocity-dependent collision thresholds. <https://ir.lib.uwo.ca/etd/1829> †
 16. Legged manipulator collision detection, arXiv 2207.14745 (2022). <https://arxiv.org/abs/2207.14745> †
 17. ArduPilot SITL vibration parameters `SIM_VIB_FREQ_X/Y/Z`, `SIM_VIB_MOT_MAX`. <https://discuss.ardupilot.org/t/how-to-simulate-tuning/102826> †
-18. Skrede et al., RCAR 2024, contact-wrench estimation; data: Zenodo 11096791. <https://zenodo.org/records/11096791>
+18. Skrede et al., RCAR 2024, contact-wrench estimation; data: Zenodo 11096791 (CC BY 4.0). <https://zenodo.org/records/11096791>
 
-Before the requirements are written, each reference that a requirement relies on is to be read in full and its
-statement checked; the † marks show which are still to be checked.
+The gear ratios of the KUKA LBR Med 14 / LBR iiwa 14 joints were not found in an official source.
