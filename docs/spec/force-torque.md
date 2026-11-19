@@ -75,9 +75,9 @@ The low-pass output x̃ is normalised to u_i = x̃_i / R_i, then the following a
 | ID | Requirement |
 |---|---|
 | FTS-ADP-510 | The configuration is JSON. The keys are those of the Configuration section of the [design](../design/force-torque-adapter.md) (`type`, `update_rate`, `range`, `overload`, `delay`, `lowpass_cutoff_hz`, `nonlinearity`, `scale_error`, `crosstalk`, `bias`, `drift_per_hour`, `noise`, `resolution`, `tare_window`) |
-| FTS-ADP-520 | Values per axis group (`fxy`, `fz`, `txy`, `tz`) are a number or `"<number>%"`. % is a fraction of that axis's range R_i. `nonlinearity` may also be a single value (the same value for all four groups) |
+| FTS-ADP-520 | Values per axis group (`fxy`, `fz`, `txy`, `tz`) or per axis (`fx`, `fy`, `tx`, `ty`; `fz` and `tz` are both an axis and a group) are a number or `"<number>%"`. An axis key takes precedence over its group (`fx` and `fy` over `fxy`, `tx` and `ty` over `txy`), so a configuration with groups only reads as before. % is a fraction of that axis's range R_i. `nonlinearity` may also be a single value (the same value for all six axes) |
 | FTS-ADP-530 | `scale_error` and `crosstalk` are `"<number>%"` or a fraction (0.05 is 5%) |
-| FTS-ADP-540 | Creation fails on: an unknown key (`$schema` is skipped), a missing required key (`type`, `update_rate`, and `range` with all four axis groups), a negative value, a range of 0 or less, an unknown `definition`, or an unreadable % notation |
+| FTS-ADP-540 | Creation fails on: an unknown key (`$schema` is skipped), a missing required key (`type`, `update_rate`, and `range` for all six axes, by group or by axis; `overload`, when written, also for all six axes), a negative value, a range of 0 or less, an unknown `definition`, or an unreadable % notation |
 | FTS-ADP-550 | Capability table: the capabilities of the stages written in the configuration are true. `tare` and `deterministic_with_seed` (when a seed is passed) are true; `overload_offset`, `temperature` and `hysteresis` are false. `thread_safe_across_instances` is true (instances share no state) |
 
 ### 2.7 Log

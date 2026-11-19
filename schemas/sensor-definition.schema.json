@@ -535,7 +535,7 @@
       }
     },
     "force_torque_group_value": {
-      "description": "A value in the axis unit (N, N m), or \"<n>%\" of that axis range (FTS-ADP-520).",
+      "description": "A value in the axis unit (N, N m), or \"<n>%\" of that axis range, per axis group (fxy, fz, txy, tz) or per axis (fx, fy, tx, ty); an axis key takes precedence over its group (FTS-ADP-520).",
       "anyOf": [
         {
           "type": "number",
@@ -566,14 +566,16 @@
         "range": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "fxy",
-            "fz",
-            "txy",
-            "tz"
-          ],
           "properties": {
             "fxy": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "fy": {
               "type": "number",
               "exclusiveMinimum": 0
             },
@@ -585,24 +587,74 @@
               "type": "number",
               "exclusiveMinimum": 0
             },
+            "tx": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "ty": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
             "tz": {
               "type": "number",
               "exclusiveMinimum": 0
             }
           },
-          "description": "Measurement range per axis group [N, N m]."
+          "description": "Measurement range per axis group or per axis (an axis key takes precedence over its group) [N, N m].",
+          "allOf": [
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "fxy"
+                  ]
+                },
+                {
+                  "required": [
+                    "fx",
+                    "fy"
+                  ]
+                }
+              ]
+            },
+            {
+              "required": [
+                "fz"
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "txy"
+                  ]
+                },
+                {
+                  "required": [
+                    "tx",
+                    "ty"
+                  ]
+                }
+              ]
+            },
+            {
+              "required": [
+                "tz"
+              ]
+            }
+          ]
         },
         "overload": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "fxy",
-            "fz",
-            "txy",
-            "tz"
-          ],
           "properties": {
             "fxy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "fz": {
@@ -611,11 +663,59 @@
             "txy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
+            "tx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "ty": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
             "tz": {
               "$ref": "#/$defs/force_torque_group_value"
             }
           },
-          "description": "Overload limit per axis group; a percentage is of the range."
+          "description": "Overload limit per axis group or per axis (an axis key takes precedence over its group); a percentage is of the range.",
+          "allOf": [
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "fxy"
+                  ]
+                },
+                {
+                  "required": [
+                    "fx",
+                    "fy"
+                  ]
+                }
+              ]
+            },
+            {
+              "required": [
+                "fz"
+              ]
+            },
+            {
+              "anyOf": [
+                {
+                  "required": [
+                    "txy"
+                  ]
+                },
+                {
+                  "required": [
+                    "tx",
+                    "ty"
+                  ]
+                }
+              ]
+            },
+            {
+              "required": [
+                "tz"
+              ]
+            }
+          ]
         },
         "delay": {
           "description": "Delay [s], floored to whole physics steps.",
@@ -642,10 +742,22 @@
                 "fxy": {
                   "$ref": "#/$defs/force_torque_group_value"
                 },
+                "fx": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "fy": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
                 "fz": {
                   "$ref": "#/$defs/force_torque_group_value"
                 },
                 "txy": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "tx": {
+                  "$ref": "#/$defs/force_torque_group_value"
+                },
+                "ty": {
                   "$ref": "#/$defs/force_torque_group_value"
                 },
                 "tz": {
@@ -689,10 +801,22 @@
             "fxy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
+            "fx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
             "fz": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "ty": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "tz": {
@@ -709,10 +833,22 @@
             "fxy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
+            "fx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
             "fz": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "ty": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "tz": {
@@ -758,10 +894,22 @@
             "fxy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
+            "fx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
             "fz": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "ty": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "tz": {
@@ -777,10 +925,22 @@
             "fxy": {
               "$ref": "#/$defs/force_torque_group_value"
             },
+            "fx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "fy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
             "fz": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "txy": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "tx": {
+              "$ref": "#/$defs/force_torque_group_value"
+            },
+            "ty": {
               "$ref": "#/$defs/force_torque_group_value"
             },
             "tz": {
