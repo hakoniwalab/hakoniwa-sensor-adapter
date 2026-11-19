@@ -1,0 +1,24 @@
+{
+  "type": "force_torque",
+  "update_rate": 500,
+  "range": {
+    "fxy": 1000,
+    "fz": 1000,
+    "txy": 1000,
+    "tz": 1000
+  },
+  "noise": {
+    "definition": "1sigma",
+    "rate_hz": 500,
+    "fxy": 0.1,
+    "fz": 0.2,
+    "txy": 0.01,
+    "tz": 0.02
+  },
+  "resolution": {
+    "fxy": 0.05,
+    "fz": 0.05,
+    "txy": 0.005,
+    "tz": 0.005
+  }
+}

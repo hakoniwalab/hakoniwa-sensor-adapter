@@ -19,7 +19,7 @@ noise-density formulas ([drone-common.md](../../docs/spec/drone-common.md)). The
 | `cards_offset_noise.py` | measurement cards of the per-unit offset, iron and noise sections |
 | `cards_drift_timing_range.py` | measurement cards of the drift, period-and-delay and resolution-and-range sections |
 | `cards_common.py`, `ec_common.py` | shared by the card scripts: the card layout, running the tool, the Allan deviation |
-| `concepts/` | the concept figures, one per stage of the processing order; illustrative data made with numpy, not measured |
+| `concepts/` | the concept figures, one per stage of the processing order; illustrative data made with numpy, not measured. `ft_*.py` draw those of the [force-torque page](../../docs/evaluation/force-torque/README.md) (`make_all.py --set force-torque`) |
 
 A measurement card is one measurement: on the left a sketch of how the sensor was mounted and moved, with the
 configured values; on the right the result, with the axes, the expected values and the measured numbers on the plot.

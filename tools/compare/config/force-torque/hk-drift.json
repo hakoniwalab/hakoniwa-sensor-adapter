@@ -1,0 +1,16 @@
+{
+  "type": "force_torque",
+  "update_rate": 500,
+  "range": {
+    "fxy": 1000,
+    "fz": 1000,
+    "txy": 1000,
+    "tz": 1000
+  },
+  "drift_per_hour": {
+    "fxy": 60,
+    "fz": 60,
+    "txy": 6,
+    "tz": 6
+  }
+}

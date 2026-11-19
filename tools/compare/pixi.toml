@@ -27,3 +27,4 @@ axis0 = { cmd = "./build/compare_axis0_no_noise results/axis0 && python plot_axi
 axis1 = { cmd = "./build/compare_axis1_accuracy results/axis1", depends-on = ["build"] }
 axis3 = { cmd = "./build/compare_axis3_repeatability results/axis3", depends-on = ["build"] }
 axis4 = { cmd = "./build/compare_axis4_speed results/axis4 hakoniwa && ./build/compare_axis4_speed results/axis4 gazebo && ./build/compare_axis4_speed results/axis4 airsim", depends-on = ["build"] }
+force-torque = { cmd = "./build/compare_force_torque results/force-torque", depends-on = ["build"] }

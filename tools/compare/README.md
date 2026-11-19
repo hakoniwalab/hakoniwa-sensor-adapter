@@ -1,6 +1,7 @@
-# Drone sensor comparisons
+# Sensor comparisons
 
-The programs behind [Drone sensors: evaluation results](../../docs/evaluation/drone/README.md): the Hakoniwa, Gazebo
+The programs behind [Drone sensors: evaluation results](../../docs/evaluation/drone/README.md) and
+[Force-torque sensor: evaluation results](../../docs/evaluation/force-torque/README.md): the Hakoniwa, Gazebo
 and Project AirSim sensors behind the same interface (`IImuSensorAdapter` and others), fed the same truth, with the
 outputs lined up. The axes are defined in [Evaluation axes](../../docs/evaluation/drone/evaluation-axes.md).
 
@@ -10,6 +11,7 @@ outputs lined up. The axes are defined in [Evaluation axes](../../docs/evaluatio
 | `axis1_accuracy.cpp` | 1. Accuracy |
 | `axis3_repeatability.cpp` | 3. Repeatability |
 | `axis4_speed.cpp` | 4. Speed (one implementation per process) |
+| `force_torque.cpp` | The force-torque sensor, axes 0, 1, 3 and 4 (Hakoniwa and Gazebo; Project AirSim has no force-torque sensor) |
 
 Axes 2 (coverage) and 5 (adoption effort) are assessments, not programs.
 
@@ -45,6 +47,7 @@ pixi run axis0
 pixi run axis1
 pixi run axis3
 pixi run axis4
+pixi run force-torque
 ```
 
 Each task writes its CSV files under `results/<axis>/` and prints a summary. Axis 4 measures time, so run it on an idle

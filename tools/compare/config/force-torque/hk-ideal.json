@@ -1,0 +1,10 @@
+{
+  "type": "force_torque",
+  "update_rate": 500,
+  "range": {
+    "fxy": 1000,
+    "fz": 1000,
+    "txy": 1000,
+    "tz": 1000
+  }
+}
