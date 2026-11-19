@@ -133,7 +133,7 @@ Noise is added after the low-pass, at each sample period boundary.
 
 The adapter reads only configuration files in its own format. The Hakoniwa adapter configuration is written as follows.
 
-- Per-axis values are written per axis group (`fxy`, `fz`, `txy`, `tz`).
+- Per-axis values are written per axis group (`fxy`, `fz`, `txy`, `tz`), or per axis (`fx`, `fy`, `tx`, `ty`) where the two axes of a group differ, as datasheets and measurements often show. An axis key takes precedence over its group; `fz` and `tz` are both.
 - A value is a number or a string with a unit suffix. `"5%"` is a ratio to the range R_i of that axis (%FS). `"500%"` for range and overload is also a ratio to the range.
 
 | Key | Meaning | Unit or form | When omitted |
