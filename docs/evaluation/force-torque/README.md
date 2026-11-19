@@ -1,15 +1,15 @@
-# Force-torque sensor: evaluation results (2026-11-11)
+# Force-torque sensor: evaluation results (2026-11-19)
 
 We compared 6-axis force-torque sensors on the same six axes as [Evaluation axes](../drone/evaluation-axes.md). Both are wrapped as adapters of the [force-torque sensor interface](../../design/force-torque-adapter.md) and receive the same truth sequence.
 
 | Implementation | Version |
 |---|---|
-| Hakoniwa | Hakoniwa force-torque sensor model (an implementation of the equations in this interface's design; the source is not public) |
+| Hakoniwa | The force-torque sensor of the `hakoniwa` implementation in the [hakoniwa-sensor-pro](https://github.com/hakoniwalab/hakoniwa-sensor-pro) v0.1.0 release archive (binaries; an implementation of the equations in this interface's design; the source is not public) |
 | Gazebo | gz-sensors 10.2.0 `ForceTorqueSensor` (the hakoniwa-sensor-adapter-gazebo adapter) |
 
 Project AirSim has no force-torque sensor, so it is not compared. The force-torque sensors of physics engines (MuJoCo `force` and `torque`, and so on) and the ROS 2 component (mujoco_ros2_control) are listed in axis 2 for feature coverage only.
 
-Date measured: 2026-11-11. Machine: macOS (arm64). Physics step 1 ms, sample period 500 Hz.
+Date measured: 2026-11-19 (first measured on 2026-11-11). Machine: macOS (arm64). Physics step 1 ms, sample period 500 Hz.
 
 ## Summary
 
@@ -136,5 +136,8 @@ Both are below 0.03 % of the 1 ms physics step.
 ## Method
 
 - The comparison program calls the two adapters only through this interface.
-- The Gazebo adapter is public, so anyone can reproduce its column.
-- The comparison program and the Hakoniwa adapter are not public.
+- Everything used is public, so anyone can reproduce both columns:
+  - the comparison program: `force_torque.cpp` in [tools/compare](../../../tools/compare) (`pixi run force-torque`; build in its README);
+  - Hakoniwa: the `hakoniwa` implementation of the hakoniwa-sensor-pro v0.1.0 release archive, `hakoniwa-sensor-pro-0.1.0-macos-arm64.zip`, SHA-256 `82040299ea2eed32139626b8c30a787fb5bc7c44d0660f303edc2155158deb23`, reached by name through the common interface;
+  - Gazebo: the public adapter [hakoniwa-sensor-adapter-gazebo](https://github.com/hakoniwalab/hakoniwa-sensor-adapter-gazebo).
+- On 2026-11-19 the outputs of axes 0, 1 and 3 were bit-identical to those of 2026-11-11, measured with the sources: the release archive computes the same. Axis 4 stayed within the published values over three runs.

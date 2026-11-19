@@ -57,3 +57,10 @@ foreach(_axis axis0_no_noise axis1_accuracy axis3_repeatability axis4_speed)
 endforeach()
 target_link_libraries(compare_axis0_no_noise PRIVATE gz-math::gz-math)
 target_compile_definitions(compare_axis0_no_noise PRIVATE HAKO_SENSORS_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+
+# The force-torque comparison (docs/evaluation/force-torque): Hakoniwa and Gazebo; Project AirSim has none.
+add_executable(compare_force_torque force_torque.cpp)
+target_include_directories(compare_force_torque PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(compare_force_torque PRIVATE hakoniwa_sensor_pro hakoniwa_sensor_adapter_gazebo)
+target_compile_definitions(compare_force_torque
+    PRIVATE HAKO_FT_COMPARE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config/force-torque")

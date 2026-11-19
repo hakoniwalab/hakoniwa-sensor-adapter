@@ -43,4 +43,15 @@ inline std::unique_ptr<hakoniwa::sensor_adapter::IGpsSensorAdapter> create_hakon
     return hakoniwa_implementation().create_gps(setup, error);
 }
 
+inline std::unique_ptr<hakoniwa::sensor_adapter::IForceTorqueSensorAdapter> create_hakoniwa_force_torque_sensor_adapter(
+    const hakoniwa::sensor_adapter::ForceTorqueAdapterSetup& setup, std::string& error)
+{
+    const auto& implementation = hakoniwa_implementation();
+    if (!implementation.create_force_torque) {
+        error = "the hakoniwa implementation has no force-torque sensor";
+        return nullptr;
+    }
+    return implementation.create_force_torque(setup, error);
+}
+
 }  // namespace hs
