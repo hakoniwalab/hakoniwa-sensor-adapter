@@ -123,6 +123,42 @@ m_c  = exp(σ_r,c · z_g(c)),   z_g ~ N(0, 1), one per group g (stream vibration
 A    → m · A,   s1 → m · s1,   σ_b → m · σ_b,   s0 unchanged
 ```
 
+### 3.5 Load direction of a joint
+
+A strain-wave gear's transmission error has a purely kinematic part and a part from the torsional compliance of the
+flexspline [19]; the second depends on the transmitted torque. When the torque through a joint changes sign, the
+teeth carry the load on the other flank, and the order components (the 2× wave-generator ripple, measured on a KUKA
+LBR iiwa joint in [20]) change in size.
+
+Evidence (Zenodo 11096791, the two recordings without contact): the tool goes over the top, so the gravity torque of
+the turning joint changes sign half-way (MuJoCo, KUKA iiwa 14 model with the tool fitted from the calibration
+recording). The order-2 line (40 Hz) became larger after the sign change:
+
+| Recording | After / before (median of 0.3 s windows) | Windows |
+|---|---|---|
+| First (free) | 1.36 | 34 / 22 |
+| Second (taps; windows away from the taps) | 1.49 | 8 / 6 |
+
+A prototype fitted on the first recording only (gain while lowering / while lifting 1.95, lag 0.7 s) predicted 1.71
+for the second (real 1.49) and reduced the mean |log₂| error of the 40 Hz envelope there from 0.28 to 0.18. On the
+first recording it reduced the error by 24 % only: the window-to-window spread is not explained by the load.
+
+A line at 100 Hz that seemed strongest near zero load (1.19× in the first recording) did not repeat in the second
+(0.97×); it is not modelled.
+
+The model therefore multiplies the orders of a joint by a gain that follows the direction of the transmitted power
+τ·q̇ with a first-order lag:
+
+```text
+P   = τ · q̇                     (τ: torque the joint transmits, host input)
+g  → g+ (P > 0, the joint drives: lifting)   or   g- (P < 0, the load drives: lowering)
+g  ← g + (1 − exp(−h / T)) (g_target − g)
+A  → g · m · A                  (m: run multiplier, section 3.4)
+```
+
+The lag stands for the time the flexspline needs to wind up through its soft region near zero torque (the catalogue
+stiffness is lowest there); its value (0.7 s) is a fit, not a measured physical constant.
+
 ## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
 ```text
@@ -251,6 +287,7 @@ first version).
 | VIB-A8 | Components add linearly to the true wrench; the sensor stages after them (low-pass, saturation) act on the sum | literature (superposition) and the design of the adapter | — | — |
 | VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
 | VIB-A10 | Run-to-run variation is a log-normal multiplier per component, constant during a run, on the motion-driven parts only; components with a common source share it | **measured** on two recordings (section 3.4); the distribution and σ_r inferred from two | three or more repetitions of the same motion | the multiplier also varies within a run, or the level at rest varies too |
+| VIB-A11 | The order components of a joint change in size with the direction of the power the joint transmits (a gain per direction, first-order lag); modes and broadband do not | **measured** on two recordings (section 3.5), the gains and the lag inferred from one; load and pose change together there | the same motion with the tool going under instead of over, or with an added payload | the gain depends on the load size or on the pose, not only on the direction |
 
 **In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
 rise with motion, reproducible from a seed.
@@ -314,5 +351,7 @@ Read in full on 2026-11-19 unless marked †; † items were not opened in full 
 16. Legged manipulator collision detection, arXiv 2207.14745 (2022). <https://arxiv.org/abs/2207.14745> †
 17. ArduPilot SITL vibration parameters `SIM_VIB_FREQ_X/Y/Z`, `SIM_VIB_MOT_MAX`. <https://discuss.ardupilot.org/t/how-to-simulate-tuning/102826> †
 18. Skrede et al., RCAR 2024, contact-wrench estimation; data: Zenodo 11096791 (CC BY 4.0). <https://zenodo.org/records/11096791>
+19. N. Ghorbel, P. S. Gandhi, F. Alpeter, "On the Kinematic Error in Harmonic Drive Gears", ASME J. Mech. Design 123(1):90–97, 2001. DOI 10.1115/1.1334379 † (abstract)
+20. N. Chawda, G. Niemeyer, "Toward Torque Control of a KUKA LBR IIWA for Physical Human-Robot Interaction", IROS 2017. <https://la.disneyresearch.com/wp-content/uploads/Toward-Torque-Control-of-a-KUKA-LBR-IIWA-for-Physical-Human-Robot-Interaction-Paper.pdf>
 
 The gear ratios of the KUKA LBR Med 14 / LBR iiwa 14 joints were not found in an official source.
