@@ -96,6 +96,33 @@ density_i = c_i · activity^p_b
 
 This covers the 64–350 times rise of the 40–300 Hz floor in the data.
 
+### 3.4 Run-to-run variation
+
+Repeating the same motion does not give the same vibration. In the two recordings of Zenodo 11096791 without contact
+(the same speed profile, the same day), the strength of the components changed by:
+
+| Component | Second / first (amplitude) | σ of ln(amplitude) from the two |
+|---|---|---|
+| Orders (40 Hz comb) | 0.88 | 0.09 |
+| Lines at 100 and 300 Hz (not following speed) | 0.16 and 0.16 | 1.3 |
+| Broadband floor between the lines | 0.48–0.69 per axis | about 0.4 |
+| Arm vibration growing with motion (Fx, Fz, Ty) | 0.21–0.54 | about 1.1 |
+
+The 100 and 300 Hz lines changed by the same factor, so they share a source. A model fitted to one recording
+reproduces that recording and misses the other by these factors.
+
+The model therefore draws, once per run, a log-normal multiplier m = exp(σ_r · z) for each component, and applies it
+to the parts driven by motion (the orders, the growth of a mode, the broadband rise). Components with a common
+source share one z (`run_group`). The configured values are the median over runs; σ_r is the spread. A host that
+wants several runs creates the model with several seeds. With σ_r = 0 (default) nothing changes.
+
+Two recordings give a rough σ_r only; it is a first value to be replaced when more repetitions are available.
+
+```text
+m_c  = exp(σ_r,c · z_g(c)),   z_g ~ N(0, 1), one per group g (stream vibration_run)
+A    → m · A,   s1 → m · s1,   σ_b → m · σ_b,   s0 unchanged
+```
+
 ## 4. Where it sits: in front of the adapter, implemented in Sensor PRO
 
 ```text
@@ -223,6 +250,7 @@ first version).
 | VIB-A7 | The direction of each component in sensor axes is fixed (per-axis amplitudes) | simplification | the same motion in two poses | amplitudes must be mapped through the arm geometry (section 9, question 2) |
 | VIB-A8 | Components add linearly to the true wrench; the sensor stages after them (low-pass, saturation) act on the sum | literature (superposition) and the design of the adapter | — | — |
 | VIB-A9 | Load, temperature, wear and contact do not change the vibration | simplification | out of scope | amplitudes and frequencies drift; not modelled |
+| VIB-A10 | Run-to-run variation is a log-normal multiplier per component, constant during a run, on the motion-driven parts only; components with a common source share it | **measured** on two recordings (section 3.4); the distribution and σ_r inferred from two | three or more repetitions of the same motion | the multiplier also varies within a run, or the level at rest varies too |
 
 **In scope:** order components following motor speed, fixed structural modes (at rest and with motion), a broadband
 rise with motion, reproducible from a seed.
