@@ -156,7 +156,22 @@ Per-axis values use the same keys as the rest of the force-torque configuration 
 4. Validate on a motion or speed not used for fitting.
 
 With Zenodo 11096791 alone (one speed) the modes, the at-rest levels and the broadband level at that speed can be
-fitted; the orders cannot be told apart from modes. A data set with several speeds is being looked for.
+fitted; the orders cannot be told apart from modes.
+
+Open data sets checked on 2026-11-19 (landing pages and file listings only). None has a wrist F/T at 500 Hz or more,
+joint states, and the same motion at two or more speeds:
+
+| Data set | License | F/T | Joint states | Speeds | Use here |
+|---|---|---|---|---|---|
+| [Zenodo 11096791](https://zenodo.org/records/11096791) (KUKA LBR Med 14) | CC BY 4.0 | ATI Gamma, ~700 Hz | orientation ~100 Hz | one slow rotation | modes, at-rest levels, broadband at one speed |
+| [REASSEMBLE](https://researchdata.tuwien.ac.at/records/0ewrv-8cb44) (Franka FR3) | CC BY 4.0 | AIDIN AFT200, rate not stated | yes | teleoperated, varying | possible, if the F/T rate is high; 54.8 GiB in one archive, mostly contact |
+| [voraus-AD](https://github.com/vorausrobotik/voraus-ad-dataset) (Yu-Cobot) | CC BY-NC-SA 4.0 (non-commercial) | none | 500 Hz, motor and joint speed, torques | speed-up and slow-down within moves | order tracking on the joint side only; licence excludes commercial use |
+| [Zenodo 7235963](https://zenodo.org/records/7235963), [7240050](https://zenodo.org/records/7240050) (Fraunhofer IPK cobot) | CC BY 4.0 | yes, rate not stated | yes | one free linear move | only if the bag rate is 500 Hz or more |
+| [NIST UR5 degradation](https://data.nist.gov/od/id/754A77D9DA1E771AE0532457068179851962) | NIST open data | none | 125 Hz | speed, payload, temperature varied | how joint-side peaks follow speed, below 62.5 Hz |
+
+Others were rejected for a low rate (100–125 Hz controller-estimated TCP force), missing joint states, restricted
+access or a paid licence. A clean separation of orders and modes most likely needs our own recording: rest, then the
+same motion at two or more speeds, with a wrist F/T at 500 Hz or more and the joint velocities.
 
 ## 8. Open questions
 
