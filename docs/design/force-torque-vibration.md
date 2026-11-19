@@ -66,7 +66,7 @@ Each listed order k of joint j adds, on each sensor axis i,
 
 ```text
 w_i += A_{j,k,i}(f_m,j) · sin(k · φ_j + θ_{j,k,i})
-A    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k}   for f_m,j ≥ f_dead,j, otherwise 0     (default p = 0: constant [6][9])
+A    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k} · min(1, f_m,j / f_dead,j)   (default p = 0: constant [6][9]; taper to 0 at rest)
 ```
 
 Following the phase rather than the frequency keeps the tone continuous when the speed changes (order tracking).
@@ -216,7 +216,7 @@ first version).
 |---|---|---|---|---|
 | VIB-A1 | The sensor's own white noise is independent of the motion | measured at rest only (Zenodo 11096791) | rest vs motion at a frequency free of vibration | the sensor noise has to grow with motion as well |
 | VIB-A2 | Order frequencies are integer multiples k of the motor rotation frequency N·\|q̇\|/2π | literature [1][6][9]; **measured** on Zenodo 11096791 (section 7.1), with the gear ratio inferred | the line frequency against speed, within one motion (acceleration, cruise, deceleration) or at several speeds | the orders are fixed modes, or the gear ratio is wrong |
-| VIB-A3 | Order amplitude follows a · (f_m / f_ref)^p, zero below a dead band; p = 0 by default | literature for p = 0 [6][9]; dead band and p ≠ 0 inferred | amplitude of the tracked line against speed | a table of amplitude vs speed replaces the power law |
+| VIB-A3 | Order amplitude follows a · (f_m / f_ref)^p, tapered linearly to zero below a dead band; p = 0 by default | literature for p = 0 [6][9]; dead band and p ≠ 0 inferred | amplitude of the tracked line against speed | a table of amplitude vs speed replaces the power law |
 | VIB-A4 | Order phases are random per unit and constant | simplification | phase is not observable in a PSD | none for spectra; matters only for time-domain matching |
 | VIB-A5 | Structural modes have fixed frequency and damping, independent of arm pose | simplification | two poses at rest | mode frequency becomes a function of pose |
 | VIB-A6 | The broadband rise grows with activity = Σ f_m / f_ref | inferred | floor at two or more speeds | another activity measure (max, per joint) |
