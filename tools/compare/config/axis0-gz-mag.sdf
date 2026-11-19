@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Axis 0 (no noise): mag at 50 Hz, the same period as config/axis0-hakoniwa.json. -->
+<sdf version="1.11">
+  <model name="vehicle">
+    <link name="body">
+      <sensor name="mag" type="magnetometer">
+        <update_rate>50</update_rate>
+      </sensor>
+    </link>
+  </model>
+</sdf>

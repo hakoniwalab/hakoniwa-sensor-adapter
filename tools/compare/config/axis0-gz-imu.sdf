@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Axis 0 (no noise): imu at 250 Hz, the same period as config/axis0-hakoniwa.json. -->
+<sdf version="1.11">
+  <model name="vehicle">
+    <link name="body">
+      <sensor name="imu" type="imu">
+        <update_rate>250</update_rate>
+      </sensor>
+    </link>
+  </model>
+</sdf>

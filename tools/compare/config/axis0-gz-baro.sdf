@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Axis 0 (no noise): baro at 50 Hz, the same period as config/axis0-hakoniwa.json. -->
+<sdf version="1.11">
+  <model name="vehicle">
+    <link name="body">
+      <sensor name="baro" type="air_pressure">
+        <update_rate>50</update_rate>
+      </sensor>
+    </link>
+  </model>
+</sdf>
