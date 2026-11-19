@@ -64,3 +64,8 @@ target_include_directories(compare_force_torque PRIVATE ${CMAKE_CURRENT_SOURCE_D
 target_link_libraries(compare_force_torque PRIVATE hakoniwa_sensor_pro hakoniwa_sensor_adapter_gazebo)
 target_compile_definitions(compare_force_torque
     PRIVATE HAKO_FT_COMPARE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config/force-torque")
+
+# Time series of one force-torque sensor, for the measurement cards of the force-torque page.
+add_executable(ft-series ft_series.cpp)
+target_include_directories(ft-series PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ft-series PRIVATE hakoniwa_sensor_pro hakoniwa_sensor_adapter_gazebo)

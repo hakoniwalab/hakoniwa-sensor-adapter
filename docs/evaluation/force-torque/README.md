@@ -2,7 +2,7 @@
 
 English | [日本語](README.ja.md)
 
-The first part explains what a force-torque sensor measures and how each of its errors works, one figure per topic (drawn for illustration). The second part compares the Hakoniwa sensor with Gazebo's.
+The first part explains what a force-torque sensor measures and how each of its errors works, one figure per topic (drawn for illustration). The second part shows measurement cards, Hakoniwa and Gazebo side by side. The third part gives the comparison on the six evaluation axes.
 
 ## How a force-torque sensor works
 
@@ -55,6 +55,72 @@ The first part explains what a force-torque sensor measures and how each of its 
 - **Bias** (`bias`) is constant per unit. **Drift** (`drift_per_hour`, σ per hour) adds a little at every sample and keeps spreading without bound, unlike the drone sensors' drift, which wanders within a band.
 - **Saturation** (`range`): beyond the range the value stops and the saturated flag is set. **Overload** (`overload`): the force that could break a real sensor; the overloaded flag is set as soon as the truth exceeds it, before the delay and the filter, so short shocks are caught.
 - **Resolution** (`resolution`): the value comes only in steps, rounded last (after tare).
+
+## Measurement cards: Hakoniwa and Gazebo side by side
+
+Each card is one measurement. The sketch on the left shows how the sensors were set up and what was configured; the plots on the right show the result. Where Gazebo has the same characteristic, both are run with the same truth and the same meaning of the setting. The data come from `ft-series` in [tools/compare](../../../tools/compare) (`cards_force_torque.py` draws the cards).
+
+### No-noise agreement
+
+![No-noise agreement](card-ft-agreement-en.png)
+
+- **Measured:** every error off; each of the six axes swings with its own amplitude and frequency, 10 s at 500 Hz.
+- **How to read it:** middle, Fz of the first 2 s (truth, Hakoniwa and Gazebo on top of each other). Right, the largest difference between the two per axis, on a log scale.
+- **Result:** the three lines coincide; the differences are at most 1.8e-15 N, the size of floating-point rounding. Both use the same direction of force and the same moment axes.
+
+### Noise
+
+![Noise](card-ft-noise-en.png)
+
+- **Measured:** no load, 20,000 samples, both configured with σ 0.1 N on Fx.
+- **How to read it:** histograms; horizontal the value, vertical how many samples had it. The red line is the shape the configured σ should give.
+- **Result:** standard deviations of 0.1006 N (Hakoniwa) and 0.0998 N (Gazebo). Both follow the configuration.
+
+### Bias
+
+![Bias](card-ft-bias-en.png)
+
+- **Measured:** 40 sensors of each (seeds 1–40), no load, Fx of the first sample. Both configured with a 0.5 N bias.
+- **How to read it:** one dot per sensor; the band is ±0.5 N.
+- **Result:** Hakoniwa spreads the 40 units within ±0.5 N (40 distinct values, 20 negative), reading the datasheet value as "within". Gazebo gives only +0.5 or −0.5 (2 distinct values, 21 negative): it attaches a random sign to the configured value; a spread between units has to be written separately (`bias_stddev`).
+
+### Drift
+
+![Drift](card-ft-drift-en.png)
+
+- **Measured:** three sensors of each at rest for 2 minutes. Hakoniwa: random walk, `drift_per_hour` 60 N. Gazebo: Gauss-Markov, `dynamic_bias_stddev` 1 N, correlation time 10 s.
+- **How to read it:** time against Fx; the shaded area is ±σ of each model.
+- **Result:** Hakoniwa's drift keeps spreading, as σ = 60 × √(t ÷ 1 h) says; a real sensor's offset keeps wandering until it is tared again. Gazebo's stays in a band, but the band is ±2.24 N, √(τ/2) = 2.24 times the configured 1 N (dashed): to get σ, write σ / √(τ/2).
+
+### Repeatability
+
+![Repeatability](card-ft-repeatability-en.png)
+
+- **Measured:** seed 5, noise σ 0.1 N. Middle: another sensor (seed 99) is stepped in between. Right: reset at 4 s, then the same truth again. Each is compared with the sequence of the sensor run alone.
+- **How to read it:** the difference from the sequence run alone; 0 means the same sequence.
+- **Result:** Hakoniwa stays at 0 in both. Gazebo has one random stream per process, so another sensor changes its sequence, and a reset does not bring it back.
+
+### Quantization
+
+![Quantization](card-ft-quantization-en.png)
+
+- **Measured:** Fz grows by 0.4 N per second; both with steps of 0.05 N and noise σ 0.2 N.
+- **How to read it:** a zoom below the noise; the faint lines are the steps.
+- **Result:** every value of both lies on a step (0 values off the steps).
+
+### Hakoniwa only: tare and the low-pass filter
+
+![Tare and the low-pass filter](card-ft-tare-filter-en.png)
+
+- **Measured:** middle, bias 0.5 N and noise σ 0.2 N on Fz, `tare()` at 1 s and a 10 N push at 2.5 s. Right, a 10 N push through a 20 Hz low-pass and without it.
+- **Result:** after `tare()` the offset is gone (mean +0.003 N) and the push shows as 10 N. The filter smooths the value but takes 22 ms to reach 9 N. Gazebo has neither.
+
+### Hakoniwa only: calibration errors, saturation and overload
+
+![Calibration errors, saturation and overload](card-ft-calibration-limits-en.png)
+
+- **Measured:** middle, Fz from 0 to the full range 200 N with nonlinearity 2 %, scale error 3 % and crosstalk 5 % (the unit of seed 2). Right, Fz from 0 to 1300 N with a range of 200 N and an overload of 500 % (1000 N).
+- **Result:** Fz is off by up to −2.3 N at 200 N, and Fx, whose truth is 0, shows up to −3.9 N. The output stops at 200 N with the saturated flag from 0.154 s, and the overloaded flag is set from 0.770 s, when the truth passes 1000 N. Gazebo has none of these.
 
 ## Evaluation results
 
