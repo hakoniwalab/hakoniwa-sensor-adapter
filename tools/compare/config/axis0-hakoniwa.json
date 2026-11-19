@@ -1,0 +1,11 @@
+{
+  "components": {
+    "sensors": {
+      "gyro": {"updatePeriodMsec": 4},
+      "acc": {"updatePeriodMsec": 4},
+      "mag": {"updatePeriodMsec": 20},
+      "baro": {"updatePeriodMsec": 20},
+      "gps": {"updatePeriodMsec": 100}
+    }
+  }
+}

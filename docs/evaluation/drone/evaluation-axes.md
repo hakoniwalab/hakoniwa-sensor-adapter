@@ -1,6 +1,6 @@
 # Sensor evaluation axes
 
-This page defines what to measure, and how, when we compare the Hakoniwa Drone PRO sensors (the Hakoniwa sensor adapter) with the Gazebo sensors (the gz-sensors adapter) through the same interface and with the same truth.
+This page defines what to measure, and how, when we compare the Hakoniwa sensors (the Hakoniwa sensor adapter) with the Gazebo sensors (the gz-sensors adapter) through the same interface and with the same truth.
 Pass/fail criteria are not set here. We list the numbers and the reasons for the differences.
 
 ## 1. Assumptions
@@ -32,7 +32,7 @@ Expected values are computed by hand from the equations, independently of both i
 
 | Implementation | Version |
 |---|---|
-| Hakoniwa | The Hakoniwa Drone PRO sensor v2 models wrapped as adapters of this interface (the same computation as Drone PRO; the source is not public) |
+| Hakoniwa | The `hakoniwa` implementation of the hakoniwa-sensor-pro v0.1.0 release archive (binaries; the sensor v2 models of Hakoniwa Drone PRO, the same computation; the source is not public) |
 | Gazebo | gz-sensors 10.2.0 (Jetty), standard sensors and noise models. No custom plugins |
 | Project AirSim | The core_sim sensors (Imu, Magnetometer, Barometer, Gps) compiled as is (the native adapter of hakoniwa-sensor-adapter-airsim). Pinned to upstream commit `92032a6c`; the sha256 of the 140 files used is checked before building |
 

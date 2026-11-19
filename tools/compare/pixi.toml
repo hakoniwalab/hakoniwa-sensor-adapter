@@ -1,0 +1,29 @@
+[workspace]
+name = "hakoniwa-sensor-compare"
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "osx-64", "linux-64", "linux-aarch64"]
+
+# The environment of the drone sensor comparisons: gz-sensors for the Gazebo adapters, and the libraries that
+# Project AirSim's core_sim pins. The Hakoniwa implementation comes from a hakoniwa-sensor-pro release archive.
+[dependencies]
+gz-sensors = "==10.2.0"
+cmake = ">=3.16"
+ninja = "*"
+cxx-compiler = "*"
+pkg-config = "*"
+python = "3.12.*"
+matplotlib = "*"
+libboost-headers = "*"
+nng = "1.11.*"
+msgpack-cxx = "*"
+eigen = "*"
+nlohmann_json = "*"
+
+[tasks]
+fetch-airsim = "python ../../../hakoniwa-sensor-adapter-airsim/tools/projectairsim_lock.py fetch"
+configure = { depends-on = ["fetch-airsim"], cmd = "cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$CONDA_PREFIX -DCOMPARE_WITH_AIRSIM=ON -DHAKONIWA_SENSOR_PRO_DIR=$HAKONIWA_SENSOR_PRO_DIR" }
+build = { cmd = "cmake --build build", depends-on = ["configure"] }
+axis0 = { cmd = "./build/compare_axis0_no_noise results/axis0 && python plot_axis0.py results/axis0", depends-on = ["build"] }
+axis1 = { cmd = "./build/compare_axis1_accuracy results/axis1", depends-on = ["build"] }
+axis3 = { cmd = "./build/compare_axis3_repeatability results/axis3", depends-on = ["build"] }
+axis4 = { cmd = "./build/compare_axis4_speed results/axis4 hakoniwa && ./build/compare_axis4_speed results/axis4 gazebo && ./build/compare_axis4_speed results/axis4 airsim", depends-on = ["build"] }

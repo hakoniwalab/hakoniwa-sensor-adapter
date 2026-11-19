@@ -1,4 +1,4 @@
-# Axis 1: accuracy (2026-11-01)
+# Axis 1: accuracy (2026-11-19)
 
 We added error settings one at a time and compared the statistics of (output − truth) with expected values computed from the settings.
 To give the settings the same meaning, we wrote them as drone_config items for Hakoniwa, SDFormat items for Gazebo, and core_sim JSON items for Project AirSim (unit conversions in the notes below). Project AirSim specifies IMU white noise as a density, so we converted it as σ × √(sample interval). The truth is a stationary state (IMU level and at rest, GPS at the origin).

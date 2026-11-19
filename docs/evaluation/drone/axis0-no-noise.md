@@ -1,4 +1,4 @@
-# Axis 0: no-noise agreement (2026-11-01)
+# Axis 0: no-noise agreement (2026-11-19)
 
 These are the results for axis 0 of [Evaluation axes](evaluation-axes.md). We fed the same truth to the Hakoniwa sensor adapter, the Gazebo adapter (gz-sensors 10.2.0) and Project AirSim (core_sim compiled as is), all with every error turned off, and compared the values.
 The physics step is 1 ms (3 ms only for the timing rule). We ran on macOS (arm64).
@@ -17,7 +17,7 @@ Method: as in "Method" in [Drone sensor results](README.md).
 | Barometer | Height 0 to 3000 m | **0** (both agree with US 1976) | Up to 0.09 Pa from US 1976 (computed in 32-bit floating point). **Pressure altitude is off by up to 2.65 m** |
 | GPS | 10 km north-west from the origin, 100 m/s | At 10 km: 9.6 m horizontal, 7.8 m vertical | From Gazebo: 15.9 m horizontal, 7.8 m vertical. From Hakoniwa: 13.0 m north, 21.8 m east, 0 vertical |
 | Sample times (1 ms physics step) | All of the above | Number of times a different physics step was sampled: 0 | 0 |
-| Sample times (3 ms physics step, 250 Hz) | 3 s | Hakoniwa 1000 times, Gazebo 750 times | A period that does not divide evenly is refused at creation |
+| Sample times (3 ms physics step, 250 Hz) | 3 s | Hakoniwa 1000 times, Gazebo 1000 times (750 on 2026-11-01; see below) | A period that does not divide evenly is refused at creation |
 
 ## Explanation of the differences
 
@@ -44,7 +44,8 @@ Method: as in "Method" in [Drone sensor results](README.md).
 We ran a 250 Hz (4 ms) sensor with a 3 ms physics step.
 
 - Hakoniwa rounds the period to a number of physics steps (4 ÷ 3 rounded to 1 step). So it **samples every step (333 Hz)**.
-- Gazebo holds the period as time. It advances the next sample time by 4 ms each time and samples at the first step past that time. The intervals mix 3 ms and 6 ms, giving **250 Hz on average**.
+- The Gazebo adapter now does the same: it rounds the period to whole physics steps and samples on the multiples of the period from time 0, so it also **samples every step**. This came with the adapter's support of the update-period calls (reading and changing the period), after 2026-11-01.
+- On 2026-11-01 the Gazebo adapter left the period to gz-sensors, which holds it as time: it advanced the next sample time by 4 ms each time and sampled at the first step past that time, mixing 3 ms and 6 ms intervals (750 samples, **250 Hz on average**).
 - The Project AirSim adapter refuses, at creation, a period that does not divide evenly by the physics step (core_sim just samples at each interval it is given and has no period).
 - With periods that divide evenly (for example 4 ms with a 1 ms physics step, the normal use), all three sampled at the same times.
 - Hakoniwa now prints a warning when the period does not divide evenly (SEN-COM-177).

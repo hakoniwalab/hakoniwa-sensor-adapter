@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<!-- Axis 0 (no noise): gps at 10 Hz, the same period as config/axis0-hakoniwa.json. -->
+<sdf version="1.11">
+  <model name="vehicle">
+    <link name="body">
+      <sensor name="gps" type="navsat">
+        <update_rate>10</update_rate>
+      </sensor>
+    </link>
+  </model>
+</sdf>

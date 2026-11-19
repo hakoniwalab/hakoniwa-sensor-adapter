@@ -1,4 +1,4 @@
-# Axis 3: repeatability (2026-11-01)
+# Axis 3: repeatability (2026-11-19)
 
 We checked whether the same seed gives the same value sequence. We compare the first 500 values in a stationary state for the IMU (gyro noise, turn-on bias, slowly varying bias).
 
