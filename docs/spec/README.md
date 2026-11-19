@@ -10,6 +10,7 @@ The design rationale is in the design documents:
 
 - [Range and image sensor adapter](../design/range-image-adapter.md)
 - [Force-torque sensor adapter](../design/force-torque-adapter.md)
+- [Force-torque vibration of a moving arm](../design/force-torque-vibration.md)
 - [Joint sensor adapter](../design/joint-sensor-adapter.md)
 - [IMU adapter](../design/imu-adapter.md)
 - [Magnetometer, barometer and GPS adapters](../design/mag-baro-gps-adapter.md)
@@ -25,6 +26,7 @@ The design rationale is in the design documents:
 | Depth camera | [depth-camera.md](depth-camera.md) | `RIS-DEP-*` |
 | RGB camera | [rgb-camera.md](rgb-camera.md) | `RIS-RGB-*` |
 | Force-torque sensor | [force-torque.md](force-torque.md) | `FTS-ADP-*` |
+| Force-torque vibration model (host side) | [force-torque-vibration.md](force-torque-vibration.md) | `FTV-*` |
 | Joint sensor (encoder and joint torque) | [joint.md](joint.md) | `JNT-ADP-*` |
 | Common rules for drone sensors | [drone-common.md](drone-common.md) | `SEN-COM-*` |
 | Gyroscope | [gyro.md](gyro.md) | `SEN-GYR-*` |
