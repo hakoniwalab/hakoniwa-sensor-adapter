@@ -17,7 +17,7 @@ physics step [s], N(0, σ) the normal distribution.
 | ID | Requirement |
 |---|---|
 | FTV-010 | A model is created from a configuration file (section 5), the physics step, the vehicle name and index, the sensor name, and an optional seed, the fields of `SensorAdapterSetup`. Creation fails with a message on any configuration error (FTV-510) |
-| FTV-020 | `step(sim_time_ns, joint_velocity, out, error)` takes the joint velocities [rad/s, joint side] of this physics step and returns the wrench to add [N, N·m, sensor axes]. The number of velocities must equal the number of configured joints, and each must be finite; otherwise it returns false with a message and changes no state |
+| FTV-020 | `step(sim_time_ns, joint_velocity, out, error)` takes the joint velocities [rad/s, joint side] of this physics step and returns the wrench to add [N, N·m, sensor axes]. The number of velocities must equal the number of configured joints (`joint_names()` gives them in order), and each must be finite; otherwise it returns false with a message and changes no state |
 | FTV-030 | Step times are 0, h, 2h, …; any other time is an error without side effects, as for the force-torque adapter (FTS-ADP-020) |
 | FTV-040 | `reset` returns the motor phases, the filters and the random streams to their state at creation; the same inputs then give the same outputs as right after creation |
 | FTV-050 | An implementation provides the model through an entry point of its own, `HAKO_SENSOR_HOST_MODEL_ENTRY(<name>)`, returning a table with `create_force_torque_vibration`. `SensorAdapterImplementation` is not changed; an implementation without the model has no such entry |
