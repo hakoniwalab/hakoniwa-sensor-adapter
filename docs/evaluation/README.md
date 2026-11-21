@@ -22,6 +22,7 @@ truth sequence ─┬─▶ Hakoniwa adapter               ─┐
 | Sensor | Compared | Results |
 |---|---|---|
 | Drone sensors (IMU, magnetometer, barometer, GPS) | hakoniwa-sensor-pro v0.1.0 (the Hakoniwa Drone PRO sensor v2 models), gz-sensors 10.2.0, Project AirSim core_sim | [Drone sensors](drone/README.md) |
+| Drone IMU against real X500 flight logs | Public PX4 Flight Review logs (20 distinct X500 V2 flights) and PX4 v1.17.0 in an athrill3 closed loop | [X500 IMU real-data comparison](imu-x500/README.md) ([日本語](imu-x500/README.ja.md)) |
 | 6-axis force-torque sensor | hakoniwa-sensor-pro v0.1.0 (the Hakoniwa force-torque sensor model), gz-sensors 10.2.0. Feature coverage also for MuJoCo and mujoco_ros2_control | [Force-torque sensor](force-torque/README.md) |
 | Joint sensors (encoder, joint torque) | Hakoniwa joint sensor model, and the values (truth) output by Gazebo, MuJoCo, mujoco_ros2_control and Webots | [Joint sensors](joint/README.md) |
 

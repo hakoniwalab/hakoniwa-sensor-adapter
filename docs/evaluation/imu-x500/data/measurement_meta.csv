@@ -1,0 +1,7 @@
+item,value
+window_seconds,0.5
+peak_band_hz,40-1000
+order_tolerance,0.03
+hover_horizontal_speed_max_m_s,1.0
+hover_abs_vertical_speed_max_m_s,0.5
+wrong_time_pairing,cyclic shift by half of all real windows
