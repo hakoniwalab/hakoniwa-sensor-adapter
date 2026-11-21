@@ -3,7 +3,7 @@
 // (cards_force_torque.py); the comparison tables come from force_torque.cpp.
 //
 //   ft-series --implementation hakoniwa|gazebo --config FILE --out FILE.csv [--duration S] [--seed N]
-//             [--motion rest|sine|ramp|step] [--rate R] [--t0 S] [--other-seed N] [--reset-at S] [--tare-at S]
+//             [--motion rest|sine|ramp|step|file] [--input FILE.csv] [--rate R] [--t0 S] [--other-seed N] [--reset-at S] [--tare-at S]
 //             [--every N]
 //
 // Motions (sensor axes; Fz only unless stated):
@@ -11,6 +11,8 @@
 //   sine   every axis a sine of its own amplitude and frequency plus a constant (as force_torque.cpp)
 //   ramp   Fz = --rate N/s × (t − t0) from t0
 //   step   Fz = --rate N from t0
+//   file   every axis from --input FILE.csv (columns t,fx,fy,fz,tx,ty,tz with a header; t in s, sensor axes),
+//          one physics step per row; the step length is taken from the file's first two rows
 // --other-seed steps a second sensor of the same configuration (another seed) before each step of this one, as
 // another sensor of the same process would. --reset-at calls reset() at that time and restarts the time from 0.
 // --tare-at calls tare() at that time. Columns: time (continuous across a reset), updated, fx … tz, true_fx … true_tz,
@@ -21,7 +23,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "hakoniwa/sensor_adapter/gazebo/gz_force_torque_sensor_adapter.hpp"
 #include "hakoniwa_entry.hpp"
@@ -30,11 +34,11 @@ namespace sa = hakoniwa::sensor_adapter;
 
 namespace {
 
-constexpr std::uint64_t kStepNs = 1000000;  // 1 ms
+std::uint64_t kStepNs = 1000000;  // 1 ms, or the step of an input file
 constexpr double kPi = 3.14159265358979323846;
 
 struct Options {
-    std::string implementation{"hakoniwa"}, config, out, motion{"rest"};
+    std::string implementation{"hakoniwa"}, config, out, motion{"rest"}, input;
     double duration{10}, rate{0}, t0{0}, reset_at{-1}, tare_at{-1};
     std::uint64_t seed{1}, other_seed{0}, every{1};
     bool other{false};
@@ -59,6 +63,7 @@ Options parse(int argc, char** argv)
         else if (key == "--config") o.config = value();
         else if (key == "--out") o.out = value();
         else if (key == "--motion") o.motion = value();
+        else if (key == "--input") o.input = value();
         else if (key == "--duration") o.duration = std::stod(value());
         else if (key == "--rate") o.rate = std::stod(value());
         else if (key == "--t0") o.t0 = std::stod(value());
@@ -91,10 +96,35 @@ std::unique_ptr<sa::IForceTorqueSensorAdapter> make(const Options& o, std::uint6
     return a;
 }
 
-sa::Wrench truth(const Options& o, double t)
+// The rows of --input (motion "file"): time and the six truth values.
+std::vector<std::vector<double>> g_rows;
+
+void load_input(const Options& o)
+{
+    std::ifstream in(o.input);
+    if (!in) fail("cannot open --input " + o.input);
+    std::string line;
+    std::getline(in, line);  // header
+    while (std::getline(in, line)) {
+        std::vector<double> row;
+        std::stringstream ss(line);
+        for (std::string cell; std::getline(ss, cell, ',') && row.size() < 7;) row.push_back(std::stod(cell));
+        if (row.size() < 7) fail("--input: a row has fewer than 7 columns");
+        g_rows.push_back(row);
+    }
+    if (g_rows.size() < 2) fail("--input: fewer than two rows");
+    kStepNs = static_cast<std::uint64_t>(std::llround((g_rows[1][0] - g_rows[0][0]) * 1e9));
+    if (kStepNs == 0) fail("--input: the first two rows have the same time");
+}
+
+sa::Wrench truth(const Options& o, double t, std::uint64_t k)
 {
     sa::Wrench w;
-    if (o.motion == "sine") {
+    if (o.motion == "file") {
+        const auto& r = g_rows[k];
+        w.force = {r[1], r[2], r[3]};
+        w.torque = {r[4], r[5], r[6]};
+    } else if (o.motion == "sine") {
         w.force = {5 * std::sin(2 * kPi * 0.7 * t), -3 + 2 * std::sin(2 * kPi * 1.3 * t),
                    -19.6 + 4 * std::sin(2 * kPi * 2.1 * t)};
         w.torque = {0.4 * std::sin(2 * kPi * 0.9 * t), 1.96 + 0.3 * std::sin(2 * kPi * 1.7 * t),
@@ -120,15 +150,21 @@ void put(std::ofstream& csv, const sa::Wrench& w)
 int main(int argc, char** argv)
 {
     const Options o = parse(argc, argv);
+    if (o.motion == "file") {
+        if (o.input.empty()) fail("--motion file needs --input");
+        load_input(o);
+    }
     auto sensor = make(o, o.seed, "ft");
     std::unique_ptr<sa::IForceTorqueSensorAdapter> other;
     if (o.other) other = make(o, o.other_seed, "ft_other");
     std::ofstream csv(o.out);
     csv.precision(17);  // enough digits to keep differences of rounding size
     csv << "time,updated,fx,fy,fz,tx,ty,tz,true_fx,true_fy,true_fz,true_tx,true_ty,true_tz,flags\n";
-    const auto steps = static_cast<std::uint64_t>(std::llround(o.duration * 1000.0));
-    const auto reset_step = o.reset_at >= 0 ? static_cast<std::uint64_t>(std::llround(o.reset_at * 1000.0)) : steps + 1;
-    const auto tare_step = o.tare_at >= 0 ? static_cast<std::uint64_t>(std::llround(o.tare_at * 1000.0)) : steps + 1;
+    const double steps_per_s = 1e9 / static_cast<double>(kStepNs);
+    const auto steps = o.motion == "file" ? static_cast<std::uint64_t>(g_rows.size())
+                                          : static_cast<std::uint64_t>(std::llround(o.duration * steps_per_s));
+    const auto reset_step = o.reset_at >= 0 ? static_cast<std::uint64_t>(std::llround(o.reset_at * steps_per_s)) : steps + 1;
+    const auto tare_step = o.tare_at >= 0 ? static_cast<std::uint64_t>(std::llround(o.tare_at * steps_per_s)) : steps + 1;
     std::string error;
     std::uint64_t k0 = 0;  // the step at which the sensor's own time restarted
     for (std::uint64_t k = 0; k < steps; ++k) {
@@ -137,10 +173,10 @@ int main(int argc, char** argv)
             k0 = k;
         }
         if (k == tare_step && !sensor->tare(error)) fail("tare: " + error);
-        const double t = static_cast<double>(k) * 1e-3;
+        const double t = static_cast<double>(k) * static_cast<double>(kStepNs) * 1e-9;
         sa::ForceTorqueTruth in;
         in.sim_time_ns = (k - k0) * kStepNs;
-        in.wrench = truth(o, t);
+        in.wrench = truth(o, t, k);
         if (other) {
             sa::ForceTorqueSample ignored;
             if (!other->step(in, ignored, error)) fail(error);
