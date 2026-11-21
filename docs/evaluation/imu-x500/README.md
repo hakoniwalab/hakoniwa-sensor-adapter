@@ -18,6 +18,8 @@ Hakoniwa model ─┬─ Vibration model alone (rotor-speed input and resulting 
 
 - Real aircraft: public PX4 Flight Review logs (CC BY 4.0). From 3,174 X500 V2 logs, 20 distinct flights containing
   both raw gyro (`sensor_gyro_fifo`) and four-motor speed (`esc_status`) were selected.
+- Eight of those flights from one PX4_FMU_V6X aircraft also contain raw accelerometer data; one was fitted and seven
+  were held out for validation.
 - The IMU's intrinsic noise: stationary TUM VI records (CC BY 4.0, BMI160, 111 hours).
 - Acceptance lines were fixed before measurement. Unsupported claims and mismatched conditions are stated explicitly;
   the comparison tests tendencies and does not promise that the aircraft are identical.
@@ -34,8 +36,9 @@ Hakoniwa model ─┬─ Vibration model alone (rotor-speed input and resulting 
 | | B4 | Line width and splitting (motor-speed differences and per-rotor amplitudes) | Later version |
 | | B5 | Floor between lines (vibration unrelated to rotor speed) | Later version (not in the model yet) |
 | | B6 | Distribution over three axes (changes between flights) | Later version |
-| | B7 | Accelerometer vibration | Later version (nine real flights) |
-| C: closed loop | C1 | **PX4's own vibration metrics** (`vehicle_imu_status`) | Measured (card 4) |
+| | B7 | **Accelerometer vibration** (orders 1–6) | Measured (card 4) |
+| | B8 | **Whether the vibration direction rotates** (x-y phase) | Measured (card 5) |
+| C: closed loop | C1 | **PX4's own vibration metrics** (`vehicle_imu_status`) | Corrected and measured (card 6) |
 | | C2 | Vibration received by control and the dynamic notch (`IMU_GYRO_DNF`) | Later version (higher log rate required) |
 | | C3 | Attitude and position holding | Later version |
 | D: conditions | D1 | Translation, acceleration, and turns | Later version (about three minutes on one aircraft) |
@@ -89,23 +92,64 @@ Hakoniwa model ─┬─ Vibration model alone (rotor-speed input and resulting 
   distributions, and growth is steeper than the default exponent of 2. Flight variation is large, and these results
   must not be interpreted as hover-only exponents.
 
-### C1 PX4's own vibration metrics
+### B7 Accelerometer vibration
+
+![Accelerometer vibration amplitude by rotor order](card-imu-accel-en.png)
+
+- **What was measured:** Three-axis accelerometer RMS in the order 1–6 bands was measured in 0.5 s hover windows for
+  real flight `75ac4a47` and three runs each of athrill3's in-phase `v6x-vib` and rotating-phase `rot-vib` modes.
+  The real primary is an ADIS16470 raw FIFO (about 8.1 kHz); the emulated primary is a BMI055 raw FIFO (8 kHz), so
+  the chips are not identical. Pale bars give the min–max of per-flight medians over the other seven flights of the
+  same V6X aircraft, which were held out from fitting. The criterion is athrill3 / `75ac4a47` = 0.70–1.43 in every band.
+- **How to read the graph:** The middle plot gives absolute values: black circles are `75ac4a47`; triangles and diamonds
+  are three-run medians, with short bars showing run-to-run range. The right plot divides them by the reference flight;
+  the green band is the acceptance range.
+- **Result:** Real orders 1–6 were **7.55, 2.61, 10.26, 7.06, 23.97, and 8.39 m/s²**. The in-phase model measured
+  **6.61, 2.44, 8.93, 6.19, 18.69, and 5.98 m/s²** (ratios **0.88, 0.94, 0.87, 0.88, 0.78, 0.71**); the rotating
+  model measured **6.75, 2.42, 9.03, 6.11, 18.47, and 5.92 m/s²** (**0.89, 0.93, 0.88, 0.87, 0.77, 0.71**).
+  **Both modes pass all six bands**, and order 5 is largest in the real flight and both models. The held-out ranges
+  were 0.71–14.65, 1.87–5.61, 0.51–33.66, 4.15–13.58, 1.09–29.17, and 7.26–15.10 m/s², respectively.
+
+### B8 Whether the vibration direction rotates
+
+![Phase between x and y vibration](card-imu-phase-en.png)
+
+- **What was measured:** Cross-power-weighted `|phase|` between x and y was measured in the 1× and 2× bands of raw gyro
+  and accelerometer hover data. Trajectories show four turns of the 1× band, band-passed to ±15% of mean rotor frequency;
+  each plot uses one common x-y normalization. This is descriptive rather than pass/fail: it tests whether the vibration
+  direction rotates with time.
+- **How to read the graph:** An unbalanced force turns with its rotor, so x and y are a quarter-cycle apart. Summing four
+  counter-rotating rotors with different per-axis amplitudes produces an ellipse, not necessarily a circle. A diagonal
+  line means x and y are in phase; an ellipse means they are phase-shifted.
+- **Result:** Real gyro phase was **125°** at 1× and **100°** at 2×; real accelerometer phase was **73°** and **95°**.
+  The former model was about **0°**, while the rotating-phase model was about **90°** for both sensors. Drone PRO
+  [PR #392](https://github.com/hakoniwalab/hakoniwa-drone-pro/pull/392) added `axisPhase: "rotating"`, which shifts x-y
+  phase by ±90° according to each rotor's direction. Comparing only 800 Hz IMUs, athrill3 / real PX4 coning moved from
+  **0.77–0.79** in phase to **0.82–1.00** with rotating phase. In the simulators we checked,
+  [ArduPilot SITL](https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_InertialSensor/AP_InertialSensor_SITL.cpp),
+  [Gazebo](https://github.com/gazebosim/gz-sensors/blob/main/src/ImuSensor.cc), and
+  [Project AirSim](https://github.com/iamaisim/ProjectAirSim/blob/main/core_sim/src/sensors/imu.cpp) also construct their
+  added axis components with the same phase. This is therefore an evidence-driven improvement, not a claim to be first.
+
+### C1 PX4's own vibration metrics (corrected)
 
 ![PX4 vibration metrics](card-imu-px4-metric-en.png)
 
-- **What was measured:** The per-log median of `vehicle_imu_status` in hover was compared for real flight `407292d1`,
-  all 20 real flights, and athrill3 off / `vib-nonotch` / `vib-notch` (three runs each). The criterion is that
-  `vib-nonotch` is within 0.5–2 times `407292d1`. Logged gyro, accelerometer, and delta-angle coning metrics were judged.
-- **How to read the graph:** The middle plot gives PX4's absolute values; pale bars are min–max across 20 real flights.
-  The right plot divides every value by `407292d1`; the green dashed band is the 0.5–2× acceptance range. Metrics use
-  different native units, so both plots use a logarithmic value axis.
-- **Result:** `vib-nonotch` divided by real was **0.740 (pass)** for gyro (0.319/0.430), **0.000291 (fail)** for
-  accelerometer (0.00293/10.05), and **0.124 (fail)** for delta-angle coning (2.88e-8/2.33e-7). The **card as a whole
-  does not meet the criterion**. This fitted vibration model covers gyro only and adds no accelerometer vibration.
-  `delta_velocity_coning_metric` was absent from all 29 logs (20 real plus nine athrill3).
-  Filter settings were not completely equal: `IMU_GYRO_CUTOFF` and `IMU_ACCEL_CUTOFF` were both 30 Hz, but
-  `IMU_DGYRO_CUTOFF` was 30 Hz on real and 20 Hz on athrill3, while `IMU_GYRO_DNF_EN` was 1 on real and 0 on
-  `vib-nonotch` (`vib-notch` used 1). DNF minimum 25 Hz, bandwidth 15 Hz, and three harmonics were the same.
+- **Correction:** The first C1 compared real and athrill3 `vehicle_imu_status` instance 0 directly, and therefore
+  compared **different IMUs at different processing rates**. PX4's vibration and coning metrics are per instance and
+  rate-dependent. Its accelerometer failure also came from the old `407292d1` fit, which used gyro data and contained no
+  accelerometer data.
+- **What was measured:** Each hover `vehicle_imu_status` instance was separated, and only nominal 800 Hz pairs were
+  compared. For ARK flight `407292d1`, the real IIM-42652 (`0x2b000a`) and two ICM-42688-P units (`0x260012` and
+  `0x26001a`), all at 800 Hz, are paired with athrill3's ICM-42688-P (`0x26000a`, 800 Hz). For V6X flight `75ac4a47`,
+  the two real 800 Hz units—IIM-42652 (`0x2b0012`) and
+  ICM-45686 (`0x34000a`)—are paired with that same emulated ICM-42688-P. The V6X primary ADIS16470 (`0x58001a`) is
+  excluded from the coning ratio because it runs at 2 kHz. The criterion is 0.5–2× for each metric.
+- **Result:** For the old ARK fit, athrill3 / real was **0.719 (pass)** for gyro, **0.000289 (fail)** for accelerometer,
+  and **0.247 (fail)** for coning, so the corrected card still fails as a whole. With the gyro-plus-accelerometer V6X
+  fit, the in-phase ratios were **0.912, 0.841, and 0.780**, while rotating-phase ratios were **0.961, 0.938, and
+  0.947**; **all three metrics pass** in both V6X modes. The two real 800 Hz coning values were 2.25e-8 and 2.28e-8 rad²;
+  the median over three athrill3 runs was 1.77e-8 in phase and 2.14e-8 rad² with rotating phase.
 
 ## Method and scope
 
@@ -113,14 +157,16 @@ Hakoniwa model ─┬─ Vibration model alone (rotor-speed input and resulting 
   `852bba68` and `906dcd6f` (same as `407292d1`) and `b3c2da8f` (same as `50c1c4fa`) were excluded.
 - FIFO period came from `timestamp_sample`, not `dt`, and no FFT window crossed a FIFO gap. Band RMS was corrected for
   Hann-window gain. Airborne state came from `vehicle_land_detected`.
-- The nine athrill3 logs use PX4 v1.17.0 on an emulated Pixhawk 6C with a 125 µs physics step. The repository contains
-  derived CSV files produced by the same script, never the ULogs.
+- The nine original athrill3 logs and six V6X-fit logs use PX4 v1.17.0 on an emulated Pixhawk 6C with a 125 µs physics
+  step. The V6X fit's `referenceRpm` is the simulated hover speed, 5540 rpm. The repository contains derived CSV files,
+  never the ULogs.
 - Although all 20 real flights are X500 V2, IMU mounting, propeller balance, individual airframes, and flight profiles
   differ. B2's wide ranges include those effects; agreement with one fitted aircraft is not agreement with every X500.
 
 ## Reproduction
 
 `tools/compare/imu_x500/` contains public-log fetching from the ID list, measurement, and card rendering. Its
-[README](../../../tools/compare/imu_x500/README.md) gives complete commands. `measure.py` produces the CSV files in
-[`data/`](data/) from real and closed-loop ULogs; `cards_imu_x500.py` draws both language versions from those CSVs only.
+[README](../../../tools/compare/imu_x500/README.md) gives complete commands. `measure.py`, `fit_v6x.py`, and
+`measure_phase2.py` produce the CSV files in [`data/`](data/) from real and closed-loop ULogs; `cards_imu_x500.py`
+draws both language versions from those CSVs only.
 The closed-loop numbers come from ULogs recorded by the athrill-target-stm32 6C vibration-hover procedure.

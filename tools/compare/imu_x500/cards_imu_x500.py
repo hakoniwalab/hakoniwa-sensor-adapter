@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the four bilingual X500 IMU measurement cards from measure.py's CSV files."""
+"""Draw the bilingual X500 IMU measurement cards from the derived CSV files."""
 import argparse
 import csv
 import sys
@@ -191,65 +191,190 @@ def exponent(args):
     save(fig, args, "card-imu-exponent")
 
 
+def accel(args):
+    data = rows(args.data, "accel_summary.csv")
+    order = np.array([int(row["order"]) for row in data])
+    real = np.array([f(row, "real_75ac4a47_m_s2") for row in data])
+    held_lo = np.array([f(row, "held_out_min_m_s2") for row in data])
+    held_hi = np.array([f(row, "held_out_max_m_s2") for row in data])
+    in_phase = np.array([f(row, "in_phase_median_m_s2") for row in data])
+    in_lo = np.array([f(row, "in_phase_min_m_s2") for row in data])
+    in_hi = np.array([f(row, "in_phase_max_m_s2") for row in data])
+    rotating = np.array([f(row, "rotating_median_m_s2") for row in data])
+    rot_lo = np.array([f(row, "rotating_min_m_s2") for row in data])
+    rot_hi = np.array([f(row, "rotating_max_m_s2") for row in data])
+    in_ratio = np.array([f(row, "in_phase_over_real") for row in data])
+    rot_ratio = np.array([f(row, "rotating_over_real") for row in data])
+    fig, left, a1, a2 = card(L("B7 加速度の振動：V6X に合わせた 1～6 倍の大きさ",
+                                      "B7 Accelerometer vibration: V6X-fitted amplitude at orders 1–6"), right=2)
+    drone_sketch(left, L([
+        "ホバーの 0.5 秒窓、各 k×回転帯の |xyz| RMS",
+        "実機 75ac4a47：一次 ADIS16470（生 FIFO 約 8.1 kHz）",
+        "athrill3：一次 BMI055（生 FIFO 8 kHz）、各 3 回",
+        "薄い横棒：同じ V6X 機体の未使用 7 飛行",
+    ], [
+        "hover 0.5 s windows; |xyz| RMS in each k× rotor band",
+        "real 75ac4a47: primary ADIS16470 (raw FIFO about 8.1 kHz)",
+        "athrill3: primary BMI055 (raw FIFO 8 kHz), three runs each",
+        "pale bars: seven held-out flights from the same V6X aircraft",
+    ]))
+    a1.hlines(order, held_lo, held_hi, color=BODY, lw=5,
+              label=L("未使用 7 飛行の最小～最大", "min–max over seven held-out flights"))
+    a1.plot(real, order, "o", color=REAL, ms=6, label=L("実機 75ac4a47", "real 75ac4a47"))
+    a1.errorbar(in_phase, order - 0.09, xerr=[in_phase - in_lo, in_hi - in_phase], fmt="^", color=SIM,
+                ms=5, capsize=2, label=L("同相：中央値と 3 回の幅", "in-phase: median and three-run range"))
+    a1.errorbar(rotating, order + 0.09, xerr=[rotating - rot_lo, rot_hi - rotating], fmt="D", color=NOTCH,
+                ms=4.5, capsize=2, label=L("回転位相：中央値と 3 回の幅", "rotating: median and three-run range"))
+    a1.set_xscale("log")
+    a1.set_xlim(0.35, 45)
+    a1.set_yticks(order, [f"{value}×" for value in order])
+    a1.invert_yaxis()
+    a1.set_xlabel(L("加速度の帯域 RMS、3 軸合成 [m/s²]", "acceleration band RMS, |xyz| [m/s²]"))
+    a1.set_ylabel(L("回転の倍数", "rotor order"))
+    result_title(a1, L("測った大きさ（5 倍が最大）", "measured amplitude (order 5 is largest)"))
+    a1.grid(axis="x", which="both", alpha=0.25)
+    a1.legend(fontsize=6.6, loc="lower left")
+    a2.axhspan(0.70, 1.43, color="#e6f3e9")
+    for value in (0.70, 1.43):
+        a2.axhline(value, color=C3, ls="--", lw=1)
+    a2.axhline(1.0, color=MUTED, lw=0.8)
+    a2.plot(order, in_ratio, "^-", color=SIM, lw=1.1, label=L("同相", "in-phase"))
+    a2.plot(order, rot_ratio, "D-", color=NOTCH, lw=1.1, ms=4.5, label=L("回転位相", "rotating"))
+    for xvalue, value in zip(order, in_ratio):
+        a2.text(xvalue - 0.07, value + 0.035, f"{value:.2f}", ha="right", fontsize=6.7, color=SIM)
+    for xvalue, value in zip(order, rot_ratio):
+        a2.text(xvalue + 0.07, value - 0.055, f"{value:.2f}", ha="left", fontsize=6.7, color=NOTCH)
+    a2.set_ylim(0.62, 1.5)
+    a2.set_xticks(order, [f"{value}×" for value in order])
+    a2.set_xlabel(L("回転の倍数", "rotor order"))
+    a2.set_ylabel(L("athrill3 ÷ 実機 75ac4a47", "athrill3 / real 75ac4a47"))
+    result_title(a2, L("基準：各帯 0.70～1.43", "criterion: 0.70–1.43 in every band"))
+    a2.grid(axis="y", alpha=0.25)
+    a2.legend(fontsize=7, loc="upper right")
+    save(fig, args, "card-imu-accel")
+
+
+def phase(args):
+    phase_data = rows(args.data, "phase_summary.csv")
+    trajectory = rows(args.data, "phase_trajectory.csv")
+    phase_by = {(row["condition"], row["sensor"], int(row["order"])): f(row, "weighted_abs_phase_deg")
+                for row in phase_data}
+    fig, left, right = card(L("B8 揺れの向きが回るか：x と y の位相",
+                                    "B8 Does the vibration direction rotate? x-y phase"))
+    sketch_axes(left, xlim=(-0.48, 0.48), ylim=(-0.48, 0.52))
+    airframe(left, size=0.29, centre=(0, 0.13))
+    spin_arrow(left, 0.30, L("不釣合い力が回る", "unbalanced force rotates"), color=C1)
+    left.arrow(0, 0.13, 0.20, 0, color=C2, width=0.005, head_width=0.045, length_includes_head=True)
+    left.text(0.23, 0.13, "x", color=C2, va="center", fontsize=9)
+    left.arrow(0, 0.13, 0, 0.20, color=NOTCH, width=0.005, head_width=0.045, length_includes_head=True)
+    left.text(0, 0.36, "y", color=NOTCH, ha="center", fontsize=9)
+    notes(left, L([
+        "x と y は 1/4 周期ずれる",
+        "逆回転ローターの和は楕円になる",
+        "Drone PRO PR #392：ローターの向きに合わせて",
+        "x–y 位相を ±90° 回す方式を追加",
+    ], [
+        "x and y are a quarter-cycle apart",
+        "counter-rotating rotors sum to an ellipse",
+        "Drone PRO PR #392 added ±90° x-y phase",
+        "according to each rotor's direction",
+    ]), y=-0.24, size=8.1)
+
+    right.set_axis_off()
+    result_title(right, L("1 倍帯の x–y 軌跡（±15 %、4 回転、各図で正規化）",
+                                "x-y trajectory in the 1× band (±15%, four turns, normalized per plot)"))
+    conditions = ("real", "in-phase", "rotating")
+    colors = {"real": REAL, "in-phase": SIM, "rotating": NOTCH}
+    titles = L(["実機", "従来：同相", "回転位相"], ["real", "before: in-phase", "rotating phase"])
+    for column, (condition, title) in enumerate(zip(conditions, titles)):
+        right.text(0.205 + 0.31 * column, 0.91, title, transform=right.transAxes, ha="center",
+                   fontsize=8.5, color=colors[condition], fontweight="bold")
+        for row_index, sensor in enumerate(("gyro", "accel")):
+            inset = right.inset_axes([0.07 + 0.31 * column, 0.52 - 0.35 * row_index, 0.27, 0.27])
+            selected = [row for row in trajectory if row["condition"] == condition and row["sensor"] == sensor]
+            inset.plot([f(row, "x_normalized") for row in selected],
+                       [f(row, "y_normalized") for row in selected], color=colors[condition], lw=0.8)
+            inset.axhline(0, color=BODY, lw=0.5)
+            inset.axvline(0, color=BODY, lw=0.5)
+            inset.set_xlim(-1.05, 1.05)
+            inset.set_ylim(-1.05, 1.05)
+            inset.set_aspect("equal")
+            inset.set_xticks([])
+            inset.set_yticks([])
+            value = phase_by[(condition, sensor, 1)]
+            inset.set_title(f"|φxy| = {value:.0f}°", fontsize=7, pad=1.5, color=INK)
+    right.text(0.015, 0.65, L("ジャイロ", "gyro"), transform=right.transAxes, rotation=90,
+               va="center", fontsize=8, color=INK)
+    right.text(0.015, 0.30, L("加速度", "accel"), transform=right.transAxes, rotation=90,
+               va="center", fontsize=8, color=INK)
+    right.text(0.5, 0.02, L("800 Hz 同士の円錐誤差：0.77–0.79×  →  0.82–1.00×",
+                                  "same-rate (800 Hz) coning: 0.77–0.79×  →  0.82–1.00×"),
+               transform=right.transAxes, ha="center", fontsize=8.4, color=INK,
+               bbox=dict(boxstyle="round,pad=0.35", fc="#e6f3e9", ec="none"))
+    save(fig, args, "card-imu-phase")
+
+
 def px4_metric(args):
-    data = rows(args.data, "px4_summary.csv")
+    data = rows(args.data, "px4_instance_summary.csv")
     labels = {
         "gyro_vibration_metric": L("ジャイロ [rad/s]", "gyro [rad/s]"),
         "accel_vibration_metric": L("加速度 [m/s²]", "accel [m/s²]"),
         "delta_angle_coning_metric": L("円錐誤差 [rad²]", "delta-angle coning [rad²]"),
     }
     y = np.arange(len(data))
-    real = np.array([f(row, "real_407292d1") for row in data])
+    real = np.array([f(row, "real_median") for row in data])
     real_lo = np.array([f(row, "real_min") for row in data])
     real_hi = np.array([f(row, "real_max") for row in data])
-    fig, left, a1, a2 = card(L("C1 PX4 自身の振動指標：実機と閉ループの PX4 が見る揺れ",
-                                      "C1 PX4 vibration metrics: what real and closed-loop PX4 observe"), right=2)
+    sim = np.array([f(row, "sim_median") for row in data])
+    sim_lo = np.array([f(row, "sim_min") for row in data])
+    sim_hi = np.array([f(row, "sim_max") for row in data])
+    ratio = np.array([f(row, "sim_over_real") for row in data])
+    fig, left, a1, a2 = card(L("C1 PX4 自身の振動指標：同じ処理レートの IMU 同士を比べる",
+                                      "C1 PX4 vibration metrics: compare IMUs at the same processing rate"), right=2)
     drone_sketch(left, L([
-        "ホバー中の vehicle_imu_status（各記録の中央値）",
-        "実機 407292d1 と実機 20 飛行の最小～最大",
-        "athrill3：振動なし／ノッチなし／ノッチあり、各 3 回",
-        "差分速度の円錐誤差は 29 記録すべてに項目なし",
+        "ホバー中、各 vehicle_imu_status インスタンス",
+        "ARK：IIM-42652 / ICM-42688-P 800 Hz ↔",
+        "　　  ICM-42688-P 800 Hz（3 回）",
+        "V6X：IIM-42652 / ICM-45686 800 Hz ↔",
+        "　　  ICM-42688-P 800 Hz（同相／回転、各 3 回）",
     ], [
-        "vehicle_imu_status in hover (median per log)",
-        "real 407292d1 and min–max across 20 real flights",
-        "athrill3: off / no notch / notch, three runs each",
-        "delta-velocity coning field absent from all 29 logs",
+        "each vehicle_imu_status instance during hover",
+        "ARK: IIM-42652 / ICM-42688-P 800 Hz ↔",
+        "     ICM-42688-P 800 Hz (three runs)",
+        "V6X: IIM-42652 / ICM-45686 800 Hz ↔",
+        "     ICM-42688-P 800 Hz (in-phase / rotating; 3 runs)",
     ]))
-    a1.hlines(y, real_lo, real_hi, color=BODY, lw=5, label=L("実機 20 飛行の幅", "20-real-flight range"))
-    a1.plot(real, y, "o", color=REAL, ms=6, label="407292d1")
-    scenarios = [("off", OFF, "s", L("振動なし", "off")), ("vib-nonotch", SIM, "^", L("ノッチなし", "no notch")),
-                 ("vib-notch", NOTCH, "D", L("ノッチあり", "notch"))]
-    for index, (group, color, marker, label) in enumerate(scenarios):
-        med = np.array([f(row, f"{group}_median") for row in data])
-        lo = np.array([f(row, f"{group}_min") for row in data])
-        hi = np.array([f(row, f"{group}_max") for row in data])
-        a1.errorbar(med, y + (index - 1) * 0.08, xerr=[med - lo, hi - med], fmt=marker, color=color, ms=5,
-                    capsize=2, label=label)
+    a1.hlines(y, real_lo, real_hi, color=BODY, lw=5, label=L("実機の同レート IMU", "rate-matched real IMU(s)"))
+    a1.plot(real, y, "o", color=REAL, ms=5, label=L("実機の中央値", "real median"))
+    point_colors = [SIM if row["sim_group"] != "rot-vib" else NOTCH for row in data]
+    for yy, med, lo, hi, color in zip(y, sim, sim_lo, sim_hi, point_colors):
+        a1.errorbar(med, yy, xerr=[[med - lo], [hi - med]], fmt="D" if color == NOTCH else "^",
+                    color=color, ms=4.5, capsize=2)
     a1.set_xscale("log")
-    a1.set_yticks(y, [labels[row["metric"]] for row in data], fontsize=8)
+    comparison_label = {
+        "ARK / gyro-only fit": L("ARK（旧適合）", "ARK (old fit)"),
+        "V6X / in-phase": L("V6X（同相）", "V6X (in-phase)"),
+        "V6X / rotating": L("V6X（回転）", "V6X (rotating)"),
+    }
+    a1.set_yticks(y, [f"{comparison_label[row['comparison']]}\n{labels[row['metric']]}" for row in data], fontsize=6.6)
     a1.invert_yaxis()
     a1.set_xlabel(L("PX4 が記録した値（各項目の固有単位）", "PX4 value (native unit of each metric)"))
-    result_title(a1, L("絶対値（横棒は実機の機体差）", "absolute values (bars: real spread)"))
+    result_title(a1, L("絶対値（横棒は IMU／3 回の幅）", "absolute values (bars: IMU / three-run spread)"))
     a1.grid(axis="x", which="both", alpha=0.25)
-    a1.legend(fontsize=6.8, loc="lower left")
+    a1.legend(fontsize=6.5, loc="lower left")
     a2.axvspan(0.5, 2.0, color="#e6f3e9")
     a2.axvline(0.5, color=C3, ls="--", lw=1)
     a2.axvline(2.0, color=C3, ls="--", lw=1)
     a2.axvline(1.0, color=MUTED, lw=0.8)
-    ratio_real_lo, ratio_real_hi = real_lo / real, real_hi / real
-    a2.hlines(y, ratio_real_lo, ratio_real_hi, color=BODY, lw=5, label=L("実機 20 飛行", "20 real flights"))
-    for index, (group, color, marker, label) in enumerate(scenarios):
-        med = np.array([f(row, f"{group}_median") for row in data]) / real
-        a2.plot(med, y + (index - 1) * 0.08, marker, color=color, ms=5, label=label)
-        if group == "vib-nonotch":
-            for yy, value in zip(y, med):
-                a2.text(value * 1.2, yy, f"{value:.3g}×", va="center", fontsize=7.2, color=color)
+    for yy, value, color in zip(y, ratio, point_colors):
+        a2.plot(value, yy, "D" if color == NOTCH else "^", color=color, ms=4.5)
+        a2.text(value * 1.12, yy, f"{value:.3g}×", va="center", fontsize=6.8, color=color)
     a2.set_xscale("log")
     a2.set_xlim(1e-4, 4)
-    a2.set_yticks(y, [labels[row["metric"]] for row in data], fontsize=8)
+    a2.set_yticks(y, [])
     a2.invert_yaxis()
-    a2.set_xlabel(L("各値 ÷ 実機 407292d1", "each value / real 407292d1"))
-    result_title(a2, L("基準：ノッチなしが 0.5～2 倍", "criterion: no notch 0.5–2×"))
+    a2.set_xlabel(L("athrill3 ÷ 同レートの実機", "athrill3 / rate-matched real"))
+    result_title(a2, L("基準：各指標 0.5～2 倍", "criterion: 0.5–2× for every metric"))
     a2.grid(axis="x", which="both", alpha=0.25)
     save(fig, args, "card-imu-px4-metric")
 
@@ -259,11 +384,11 @@ def main():
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--lang", choices=("ja", "en"), default="ja")
-    parser.add_argument("--only", nargs="*", choices=("orders", "amplitude", "exponent", "px4_metric"))
+    parser.add_argument("--only", nargs="*", choices=("orders", "amplitude", "exponent", "accel", "phase", "px4_metric"))
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     LANG[0] = args.lang
-    makers = (orders, amplitude, exponent, px4_metric)
+    makers = (orders, amplitude, exponent, accel, phase, px4_metric)
     for maker in makers:
         if not args.only or maker.__name__ in args.only:
             maker(args)
