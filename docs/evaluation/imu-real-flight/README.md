@@ -177,6 +177,10 @@ therefore a value fitted on the first half of the same flight, compared on the s
 
 The board must be one we emulate (currently some Pixhawk 6X / 6X Pro revisions, 6C and Pixhawk 4). What is public is
 the flight log IDs and the firmware we used. The vibration, sensor and chip models are not public (see References).
+How to identify the vibration parameters from your own log is public: the method in
+[propeller-vibration-identification.md](../../design/propeller-vibration-identification.md) and a reference
+implementation in [tools/vibration_fit](../../../tools/vibration_fit/README.md). The X500 values of this report came
+from an earlier version of that method; its section 7 gives the differences.
 
 If you would like to try this with your own logs or hear more, please contact Hakoniwa Lab.
 - Hakoniwa Lab: https://hakoniwa-lab.net
