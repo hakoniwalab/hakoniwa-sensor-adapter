@@ -170,3 +170,5 @@ Hakoniwa model ─┬─ Vibration model alone (rotor-speed input and resulting 
 `measure_phase2.py` produce the CSV files in [`data/`](data/) from real and closed-loop ULogs; `cards_imu_x500.py`
 draws both language versions from those CSVs only.
 The closed-loop numbers come from ULogs recorded by the athrill-target-stm32 6C vibration-hover procedure.
+
+The follow-up check, with the Pixhawk 6X boards of the logged vehicles, a second airframe (S500 V2) and the motors and battery matched, is in [How close can a simulation get to the real vehicle?](../imu-real-flight/README.md).
