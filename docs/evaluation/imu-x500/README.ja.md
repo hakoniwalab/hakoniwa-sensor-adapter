@@ -163,3 +163,5 @@
 `measure_phase2.py` は実機と閉ループの ULog から [`data/`](data/) の CSV を作り、`cards_imu_x500.py` は
 その CSV だけから日本語・英語のカードを描く。
 閉ループの数字は athrill-target-stm32 の 6C の振動ホバーの手順で取った ULog から測った。
+
+その後の照合（実機と同じ Pixhawk 6X の基板、2機種目の S500 V2、モーターと電池の合わせ込み）は、[シミュレーションは、実機にどこまで近づけるか](../imu-real-flight/README.ja.md) にあります。
