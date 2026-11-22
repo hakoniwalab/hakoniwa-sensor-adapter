@@ -117,12 +117,39 @@ The sign s_i appears because the demodulation uses the speed magnitude. A rotor 
 from another rotor's by 3 Hz has no phase; `--unresolved-phase zero` writes 0, 0, 0 for it (and the report names it),
 `omit-order` drops `rotorAxisPhaseDeg` for that order. The accelerometer uses the gyro's phases.
 
+The same demodulation also gives each rotor's own gyro amplitude per axis, 2·sqrt(mean |z|²). It goes to the report
+only (4.5).
+
+### 4.5 Why amplitudes come from band power and phases from demodulation
+
+Demodulation separates the rotors, so it could in principle give every parameter, amplitude included. It was tried
+on the X500 logs and kept for phases only:
+
+| | Band power (4.1, 4.3) | Demodulation (4.4) |
+|---|---|---|
+| Data it needs | 0.5 s of continuous FIFO | several seconds of continuous FIFO (1 Hz low-pass, 1 s dropped at each end) |
+| X500 fit log | gyro and accel usable | gyro usable (continuous runs of about 6 s); **accel unusable**: the logged accel FIFO is broken into runs mostly shorter than 1 s |
+| What it measures | all vibration energy in the order band, including energy spread around the rotor lines | only the part that follows the rotor angle within ±1 Hz |
+| Orders 2–6 gyro, demodulated ÷ band power | | 0.6–0.96 |
+| Orders 7–14 gyro, demodulated ÷ band power | | 0.3–0.7, falling with the order |
+| Rotors | sum of all rotors (the model amplitude is common to them anyway) | per rotor; rotors that do not separate (X500 order 1, rotors 3 and 4) are missing |
+
+The real higher orders do not follow the rotor angle tightly: their lines are spread in frequency (the Campbell
+diagram of the public X500 flights shows orders 3 and above smeared). Demodulation drops that spread energy, while the
+PX4 vibration metrics see all of it. Band power is therefore the right measure for the model amplitude, and
+demodulation for what only it can give: the per-rotor phase.
+
+The per-rotor amplitudes in the report show how unequal the rotors are. On the X500 fit log (first half), order 5,
+gyro x: 7.5 °/s for rotor 1, 2.2 °/s for rotor 3, 0.5 °/s for rotors 2 and 4. The model cannot represent this yet
+(section 8).
+
 ## 5. Output
 
 - the `propellerVibration` object, ready to place under `components` of a Drone PRO drone config
   (`axisPhase: "rotating"` applies to orders without `rotorAxisPhaseDeg`);
-- a report: inputs, window counts per log and sensor, how each exponent was obtained, phase coherence, unresolved
-  rotors, and the values that were chosen rather than identified.
+- a report: inputs, window counts per log and sensor, how each exponent was obtained, phase coherence, per-rotor gyro
+  amplitudes by demodulation (orders with a phase), unresolved rotors, and the values that were chosen rather than
+  identified.
 
 ## 6. Check on the X500
 
@@ -179,7 +206,8 @@ stand as measured with its values; they are not a property of the reference impl
 - Vibration outside the rotor orders is not modelled. In the 20 public X500 flights the non-order gyro RMS
   (40–1000 Hz) has a median of 6.2 °/s against 25.9 °/s in total. How much of the coning shortfall it explains is not
   measured yet.
-- Amplitudes are per axis but common to all rotors.
+- Amplitudes are per axis but common to all rotors, although the real rotors differ by up to about 16 times in one
+  order (4.5). A per-rotor amplitude needs a model change in Drone PRO; the report already holds the per-rotor values.
 - Phases come from the gyro only, and only for orders 1–6; rotors whose lines stay within 3 Hz of each other have none.
 - The exponent rests on the speed changes inside hover; it is weakly determined, and thrust and speed cannot be
   separated with these logs.

@@ -179,7 +179,9 @@ def amplitudes(windows, orders, reference_rpm, exponent):
 
 def phases(fifo, esc, hover, signs, orders):
     """Per rotor and order: the gyro y and z phase relative to x, by demodulating each axis with the rotor's own
-    integrated phase (Drone PRO rotorAxisPhaseDeg), and the phase coherence R -> phaseJitterDeg = sqrt(-ln R)."""
+    integrated phase (Drone PRO rotorAxisPhaseDeg), and the phase coherence R -> phaseJitterDeg = sqrt(-ln R).
+    Also the rotor's own gyro amplitude per axis, 2 sqrt(mean |z|^2): only the part that follows the rotor angle
+    within the low-pass, so it is reported (rotor-to-rotor differences), not used for the model amplitude."""
     etime, rpm = esc
     acc = {}
     for time, gyro, fs in fifo_blocks(fifo):
@@ -200,26 +202,30 @@ def phases(fifo, esc, hover, signs, orders):
                 if valid.sum() < fs:
                     continue
                 pxy, pxz = (z[0] * np.conj(z[1]))[valid], (z[0] * np.conj(z[2]))[valid]
-                a = acc.setdefault((r, k), [0j, 0j, 0.0, 0])
+                a = acc.setdefault((r, k), [0j, 0j, 0.0, 0, np.zeros(3)])
                 a[0] += pxy.sum()
                 a[1] += pxz.sum()
                 a[2] += np.abs(pxy).sum()
                 a[3] += valid.sum()
+                a[4] += np.array([np.sum(np.abs(z[ax][valid]) ** 2) for ax in range(3)])
     out = {}
     for k in orders:
-        rows, coherence = [], []
+        rows, coherence, amplitude = [], [], []
         for r, sign in enumerate(signs):
             a = acc.get((r, k))
             if a is None:
                 rows.append(None)
+                amplitude.append(None)
                 continue
+            amplitude.append([float(v) for v in 2.0 * np.sqrt(a[4] / a[3])])
             dy = -sign * np.degrees(np.angle(a[0]))
             dz = -sign * np.degrees(np.angle(a[1]))
             rows.append([0.0, round(float(dy), 1), round(float(dz), 1)])
             coherence.append(abs(a[0]) / a[2])
         r_med = float(np.median(coherence)) if coherence else float("nan")
         jitter = float(np.degrees(np.sqrt(max(0.0, -np.log(max(r_med, 1e-6)))))) if coherence else float("nan")
-        out[k] = {"rotors": rows, "coherence": r_med, "phaseJitterDeg": round(jitter, 1)}
+        out[k] = {"rotors": rows, "coherence": r_med, "phaseJitterDeg": round(jitter, 1),
+                  "rotor_gyro_amplitude_radps": amplitude}
     return out
 
 
@@ -299,6 +305,11 @@ def main():
         "hover_windows": {f"{Path(log).name}:{s}": len(w) for (log, s), w in windows_by_log.items()},
         "exponent": {str(k): {"value": exponent[k], "how": exponent_notes[k]} for k in orders},
         "phase_coherence": {str(k): phase[k]["coherence"] for k in phase},
+        "rotor_gyro_amplitude_radps": {
+            "values": {str(k): phase[k]["rotor_gyro_amplitude_radps"] for k in phase},
+            "note": "per rotor and axis, by demodulation: the part that follows the rotor angle. Shows how "
+                    "different the rotors are; the model amplitude is common to all rotors and comes from the "
+                    "band power (all rotors, including vibration spread around the lines)"},
         "unresolved_phase": {"handling": args.unresolved_phase, "rotors": unresolved,
                              "why": "the same order of another rotor stays within "
                                     f"{DEMOD_SEPARATION_HZ} Hz, so the two cannot be separated"},
