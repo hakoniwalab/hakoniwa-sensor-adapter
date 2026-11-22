@@ -16,8 +16,8 @@ Between the two, Hakoniwa took one step further, focused on where rotor vibratio
 Using these two methods, we tested how far the emulator can be matched to flight logs, with public logs of two
 airframes, and we also show whether the way we tested is sound (section 4). What we looked at is how rotor vibration
 appears as noise in the IMU: how much rotor vibration reaches the IMU, the heart of flight control, measured by the
-values PX4 itself computes and logs. On the second half of the same flight, not used for fitting, the vibration values
-of both airframes were within about 10 % of the vehicle. On another flight of the same vehicle, the accelerometer value
+values PX4 itself computes and logs. On the second half of the same flight, not used for fitting, the gyro and
+accelerometer vibration metrics differed from the vehicle's by at most 5 % on the X500 and at most 13 % on the S500. On another flight of the same vehicle, the accelerometer value
 and coning were off, and the yaw motion of the hand-flown S500 was only 0.6 × the vehicle's. We show both what matched
 and what did not.
 
@@ -135,8 +135,8 @@ the vibration (range of 3 emulator runs).
 
 ![S500: replaying the pilot's commands](replay-s500-en.png)
 
-- **What matched**: on the second half of the same flight, the vibration metrics of both airframes are within about
-  10 % of the vehicle. For the S500, playing back the pilot's commands makes the control targets nearly the same as the
+- **What matched**: on the second half of the same flight, the gyro and accelerometer vibration metrics differ from
+  the vehicle's by at most 5 % on the X500 and at most 13 % on the S500. For the S500, playing back the pilot's commands makes the control targets nearly the same as the
   vehicle's, and roll and pitch motion fall within the vehicle's range.
 - **What remains**: the S500's yaw motion is 0.6 × the vehicle's; the cause is not known yet (section 12). In the
   spectra, vibration above order 6 (about 560 Hz) and broadband vibration above 1 kHz come out lower than the vehicle's.
@@ -148,8 +148,8 @@ the vibration (range of 3 emulator runs).
 | Item | This result |
 |---|---|
 | Rebuild a vehicle's configuration and parameters from its flight log | Done (board revision, firmware version, full parameters, battery voltage) |
-| Run the flight firmware and parameters unchanged on the desk | Done (the logged PX4 version built for fmu-v6x) |
-| Match the noise that rotor vibration puts on the IMU to a flight log | Done; within about 10 % on the second half of the same flight, not used for fitting |
+| Run the flight firmware on the desk and transfer the vehicle's parameters | Done (the logged PX4 version built for fmu-v6x; some parameters changed to suit the emulated setup, section 9) |
+| Match the noise that rotor vibration puts on the IMU to a flight log | Done; on the second half of the same flight, not used for fitting, at most 5 % (X500) and 13 % (S500) from the vehicle |
 | Play back a hand-flown flight on the desk | Shown on the S500 |
 | Predict the vibration of another flight | Not yet. On X500 log ② the gyro matched but accel and coning did not; not better than reusing log ①'s measured values |
 | Match all body motion (especially yaw) | Not yet; the S500's yaw is 0.6 × the vehicle's |
@@ -167,7 +167,7 @@ These checks used public logs only. Doing the same requires the following in the
 | Motor speeds | Separating the vibration into rotor-speed orders; matching the motors | `esc_status` (ESC telemetry or bidirectional DShot) |
 | High-rate raw IMU data | Fitting the vibration amplitude and timing | `SDLOG_PROFILE` "raw FIFO high-rate IMU" (`sensor_gyro_fifo`, `sensor_accel_fifo`) |
 | Battery voltage | The battery voltage over time | Standard (`battery_status`) |
-| For hand-flown flights, attitude and thrust targets | Rebuilding the stick commands | Standard |
+| For hand-flown flights, attitude and thrust targets at a high rate | Rebuilding the stick commands (200 Hz targets were used here) | By default `vehicle_attitude_setpoint` is logged at most at 20 Hz (every 50 ms). To replay as here, log at a high rate, e.g. `SDLOG_PROFILE` High rate (bit 4), and check the recorded rate (the S500 log had `SDLOG_PROFILE` 273, which includes High rate). This cannot be recovered after the flight |
 | Another flight of the same vehicle in the same state | Comparing on a flight not used for fitting | Flown in succession on the same day |
 
 Few public logs include motor speeds and high-rate raw IMU data; these two airframes were chosen because theirs did.
@@ -191,7 +191,8 @@ If you would like to try this with your own logs or hear more, please contact Ha
   this error and logs the size of the correction.
 - **Why we look at it**: the vibration metrics depend on the size of the shaking; coning depends on the timing offset
   between x and y. If x and y shake in step (a straight line on the plot), coning is almost 0 however large the shaking.
-  So whether coning matches tells whether the direction and timing of the vibration are reproduced.
+  So coning is sensitive to the timing between axes. A close correction value, however, does not mean the x–y timing
+  offset is the same, so here we compared the shape of the x–y ellipse as well as the coning value.
 - **Where it stands**: on X500 log ①, both the vehicle and Hakoniwa trace ellipses, and PX4's coning value is
   0.92–0.97 × the vehicle's. The ellipse shape and tilt still differ (the x–y offset at order 1 is 153° on the vehicle
   and 94° in Hakoniwa; the plot is a 2-s snapshot, and the four rotors' shaking adds up and changes over time).
@@ -221,8 +222,8 @@ used.
 |---|---|
 | Copied from the log | Board revision, firmware version, full parameter set (with documented overrides where they cannot apply: estimator inputs, ESC protocol, ports, RC and power checks, sensor calibration values, magnetic declination), battery voltage over time |
 | Datasheet values | Chip noise, rates, internal filters |
-| Fitted to the same log | Motor resistance and motor constant (from the hover command-to-speed relation). The differences between the four rotor speeds (X500: an equivalent CG offset assuming equal thrust characteristics, about 1.0 cm forward and 1.1 cm right; S500: a per-rotor effectiveness scale). Vibration amplitude per order and axis and its dependence on speed, per-motor vibration timing (Appendix A). The S500's accelerometer vibration used the X500's accel-to-gyro ratio, scaled by 0.70 to the first-half accelerometer metric. **The vibration was fitted on the first half of the hover only** |
-| Not fitted (outputs) | Vibration metrics and coning, motor speeds and commands in the emulator, body motion |
+| Fitted to the same log | Motor resistance and motor constant (from the hover command-to-speed relation). The differences between the four rotor speeds (X500: an equivalent CG offset assuming equal thrust characteristics, about 1.0 cm forward and 1.1 cm right; S500: a per-rotor effectiveness scale). Vibration amplitude per order and axis and its dependence on speed, per-motor vibration timing (Appendix A). The S500's accelerometer vibration used the X500's accel-to-gyro ratio, with a scale of 0.70 set from the first-half accelerometer metric (kept fixed for the second-half evaluation). **The vibration was fitted on the first half of the hover only** |
+| Not fitted (outputs) | Vibration metrics and coning (the S500 accelerometer metric was evaluated on the second half with the 0.70 scale set on the first half kept fixed), motor speeds and commands in the emulator, body motion |
 
 - **Method**: for each flight, the median of `vehicle_imu_status` over the hover, divided by the vehicle's median.
   Hover = from 10 s after take-off to 5 s before landing, horizontal speed < 1 m/s, vertical speed < 0.5 m/s, yaw
@@ -259,8 +260,9 @@ used.
   first-half/second-half check is weak.
 - The vibration amplitude was fitted mainly to the raw IIM-42652 data, so the IIM-42652 metrics matching is partly
   expected.
-- While choosing the vibration model we looked at the ADIS16470 result and rejected one correction (Appendix B), so
-  that result also helped choose the model.
+- While choosing the vibration model we looked at the ADIS16470 coning and rejected one correction (Appendix B). That
+  comparison used the whole hover, including the second half. The X500 second half is therefore independent of the
+  vibration fitting but not of the model choice.
 - Body motion stays smaller than the vehicle's; the inputs cannot be matched, so this is not a like-for-like
   comparison. Coning depends on body motion times vibration, so the coning match (×0.91–0.97) is less certain than
   the vibration-metric match.
