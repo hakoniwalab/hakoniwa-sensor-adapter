@@ -2,6 +2,73 @@
 
 Status: the requirements are in [spec/force-torque-vibration.md](../spec/force-torque-vibration.md) (`FTV-*`). Open questions 2 and 3 of section 9 stay open; the first version uses per-axis amplitudes and leaves the arm IMU out.
 
+## In one picture: vibration = A + B + C
+
+![vibration = A + B + C: gear orders, arm modes, broadband](img/force-torque-vibration-abc.svg)
+
+The vibration added to the true wrench, on each sensor axis i, is the sum of three components (FTV-060):
+
+```text
+w_i = A_i + B_i + C_i
+
+A_i = Σ_j Σ_k  g_j · m_j · a_{j,k,i} · (f_m,j / f_ref)^p · min(1, f_m,j / f_dead,j) · sin(k · φ_j + θ_{j,k,i})
+B_i = Σ_n  σ_{n,i} · x_n(t),   σ_{n,i} = s0_{n,i} + m_n · ( s1_{n,i} · activity + s2_{n,i} · min(1, activity / a_r,n) )
+C_i = m_b · N(0, σ_b,i),       σ_b,i = √( D_i / 2h ),   D_i = c_i · activity^p_b
+```
+
+- **A, gear orders.** Inside each joint a motor turns N times faster than the joint and drives a strain-wave gear.
+  The teeth mesh k times per motor turn and shake the wrist. The tone follows the motor speed: at 45 °/s and N = 160
+  the motor turns 20 times a second, and order 2 sounds at 40 Hz. It is larger when the load drives the joint
+  (lowering) than when the joint drives the load (lifting). Sections 3.1 and 3.5; FTV-110 to 185.
+- **B, arm modes.** The arm is a long, lightly damped structure that sways at fixed frequencies (8 to 17 Hz in the
+  data). A little of it is there at rest (s0, the servo holding); joint friction shakes it while the arm moves, at
+  about the same level whatever the speed (s2); it may also grow with speed (s1). Sections 3.2, 3.6 and 3.7;
+  FTV-210 to 255.
+- **C, broadband.** A rough floor over all frequencies that rises with motion. Section 3.3; FTV-310 and 320.
+
+The run multipliers m are drawn once per run (section 3.4); with no run variation they are 1. The level at rest s0
+is not scaled by them.
+
+Variables:
+
+| Symbol | Meaning | Unit | Configuration key | Requirement |
+|---|---|---|---|---|
+| i | sensor axis: Fx, Fy, Fz, Tx, Ty, Tz (sensor axes, FLU) | — | axis keys `fx` … `tz`, groups `fxy` … | FTV-450 |
+| h | physics step | s | (from the host) | FTV-010 |
+| **A** | | | | |
+| j | joint, in the order of the configuration | — | `joints[]`, `name` | FTV-420 |
+| N_j | gear ratio, motor turns per joint turn | — | `gear_ratio` | FTV-110 |
+| q̇_j | joint velocity, from the host every step | rad/s | (input) | FTV-020 |
+| φ_j | motor angle, φ_j ← φ_j + N_j · q̇_j · h | rad | — | FTV-110 |
+| f_m,j | motor rotation frequency, N_j · \|q̇_j\| / 2π | Hz | — | FTV-120 |
+| k | order: tones per motor turn (2 and 4 for a strain-wave gear) | — | `orders[].order` | FTV-130 |
+| a_{j,k,i} | amplitude of order k on axis i at the reference speed | N or N·m | `orders[].amplitude` | FTV-140 |
+| p | how the amplitude grows with motor speed (0: constant) | — | `orders[].exponent` | FTV-140 |
+| f_ref | reference motor frequency | Hz | `f_ref_hz` (default 50) | FTV-140, 240 |
+| f_dead,j | below this motor frequency the orders fade out | Hz | `deadband_hz` (default 1) | FTV-140 |
+| θ_{j,k,i} | phase, drawn once at creation | rad | — | FTV-150 |
+| g_j | load-direction gain: `positive` while the joint drives, `negative` while the load drives, with a lag | — | `load_gain` {`positive`, `negative`, `lag_s`} | FTV-170 to 185 |
+| (resonance) | optional gain of the modes at the order's frequency | — | `orders[].resonance` | FTV-160 |
+| **B** | | | | |
+| n | arm mode, in the order of the configuration | — | `modes[]` | FTV-430 |
+| f_n, ζ_n | mode frequency and damping | Hz, — | `frequency_hz`, `damping` | FTV-210 |
+| x_n(t) | white noise through a band-pass at f_n, scaled to standard deviation 1 | — | — | FTV-210, 220 |
+| s0_{n,i} | level at rest (the servo holding) | N or N·m | `at_rest` | FTV-230 |
+| s1_{n,i} | growth with activity | N or N·m | `per_activity` | FTV-230 |
+| s2_{n,i} | level while moving, whatever the speed (joint friction) | N or N·m | `per_motion` | FTV-230 |
+| a_r,n | activity at which the level while moving is reached | — | `motion_ramp` (default 0.02) | FTV-235 |
+| activity | how much the arm moves: Σ_j f_m,j / f_ref | — | — | FTV-240 |
+| (at rest while moving) | share of s0 kept while moving (1 keeps, 0 removes) | — | `at_rest_while_moving` | FTV-232 |
+| (frame) | axes of the mode: the sensor's, or fixed in the world | — | `frame` | FTV-250, 255 |
+| **C** | | | | |
+| D_i | one-sided density of the broadband component | unit²/Hz | — | FTV-310 |
+| c_i | density at activity 1 | unit²/Hz | `broadband.density_per_activity` | FTV-310 |
+| p_b | how the density grows with activity | — | `broadband.exponent` (default 1) | FTV-310 |
+| **All** | | | | |
+| m | run multiplier exp(σ_r · z), z ~ N(0, 1), one per run | — | `run_log_sigma` (σ_r), `run_group` | FTV-350 to 380 |
+
+The figure uses illustrative values (one order, one mode, joint at 45 °/s), not a fitted configuration.
+
 ## 1. Why
 
 A wrist force-torque sensor on a real arm measures more than its own noise. Measurements of a KUKA LBR Med 14 with an
