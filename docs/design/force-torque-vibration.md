@@ -369,6 +369,8 @@ Per-axis values use the same keys as the rest of the force-torque configuration 
 
 ## 7. Fitting from data
 
+What data identifies which parameter, and the recording protocol: [force-torque-vibration-identification.md](force-torque-vibration-identification.md).
+
 1. Record at rest, then the same motion at three or four speeds (at least two), or one motion whose acceleration and deceleration sweep the speed.
 2. Spectrogram against motor frequency N·|q̇|: lines whose frequency moves with speed are orders, fixed lines are
    modes.
