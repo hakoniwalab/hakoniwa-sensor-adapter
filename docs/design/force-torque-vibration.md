@@ -26,12 +26,87 @@ C_i = m_b · N(0, σ_b,i),       σ_b,i = √( D_i / 2h ),   D_i = c_i · activi
   FTV-210 to 255.
 - **C, broadband.** A rough floor over all frequencies that rises with motion. Section 3.3; FTV-310 and 320.
 
+C is one term per sensor axis for the whole arm, not one per joint; the joints act on it through activity, the sum of
+their motor frequencies. It has the same white shape as the sensor's own noise, but it is kept apart from it for two
+reasons:
+
+- Its size depends on motion: 0 at rest, and in the data the 40–300 Hz floor rose 64 to 350 times (in power) while
+  moving. The sensor's own noise is the same at rest and in motion. One noise level for both would be wrong either at
+  rest (100 times too loud if set from motion) or in motion (too quiet if set from rest), and a force-torque sensor is
+  used mostly when the arm is nearly still.
+- The sensor adapter does not know the arm's motion: it applies noise, filtering and saturation to the wrench it is
+  given, so that the same adapter serves an arm or a drone. The part that grows with motion needs the joint velocities,
+  so it sits on the host side, in front of the adapter, and passes through the sensor's filter like the real vibration
+  does: true wrench + A + B + C → sensor adapter (its own noise, filter, saturation).
+
+A and B are both superpositions, of different things:
+
+```text
+A_i = Σ over (joint j, order k) of a line: a sine locked to the motor angle, at k · f_m,j (moves with speed)
+B_i = σ_1,i · x_1(t) + σ_2,i · x_2(t) + … : one swaying signal per natural frequency f_n of the whole arm
+```
+
+| | A, gear orders | B, arm modes |
+|---|---|---|
+| Source | the gear inside each joint (one source per joint) | the whole arm as one structure (links, joints, tool, sensor) |
+| Frequencies | k times the motor rotation frequency; move with speed | the arm's natural frequencies f_n; fixed, not multiples of each other |
+| Count | joints × orders | a few modes for the whole arm (7 in the first fit) |
+| Shape of one term | a sine, locked to the motor angle | x_n(t): noise through a band-pass at f_n, standard deviation 1, independent per axis |
+| Size of one term | a: the peak of the sine | σ: the standard deviation of the term |
+
+f_n is the frequency (a number, for example 12.9 Hz); x_n(t) is the vibration at that frequency (a signal); σ_{n,i}
+is how large it appears on axis i. A rigid-body simulation (MuJoCo links do not bend, joints do not twist) does not
+produce these modes, which is why B is added in front of the sensor.
+
 The run multipliers m_j, m_n and m_b are drawn once per run (section 3.4): the same motion repeated on a real arm gives a different strength each time, and one draw per run stands for that. With no run variation they are 1. The level at rest s0
 is not scaled by them.
+
+What matters most in use. A wrist force-torque sensor is read while the arm is nearly still or moving slowly:
+insertion, pressing, polishing, following a surface. There the vibration on the sensor is mostly B: the level at rest
+s0 (the servos holding the pose) and the level while moving s2 (joint friction shaking the arm's modes, the same at a
+slow speed as at a fast one; in the data the 5–20 Hz level while moving was about ten times the level at rest). The
+order lines of A move down in frequency as the arm slows: at 2 °/s with N = 160 the order-2 line is near 1.8 Hz,
+inside the bandwidth of a force controller, which is also where the fade-out near rest (f_dead) acts. And the pose
+changes little during such a task, so the fixed mode frequencies (VIB-A5) hurt least there: one recording in the
+working pose is enough. The identification therefore puts R1 (rest), R3 (start and stop) and slow speeds first.
+
+Minimal form and why each factor is there. Every factor beyond the minimal form is off by default and was added
+because the data or the literature asked for it (assumptions `VIB-A*`, section 8):
+
+```text
+A_i = Σ_j Σ_k a_{j,k,i} · sin(k · φ_j + θ)     B_i = Σ_n s0_{n,i} · x_n(t)     C_i = 0 at rest
+```
+
+| Factor | Why | Evidence | Off when |
+|---|---|---|---|
+| A: sin(k · φ_j), lines at k · f_m | gear meshing repeats with the motor angle | literature [1][6][9]; measured (VIB-A2) | — (minimal form) |
+| A: k = 2 for strain-wave gears | two mesh zones per motor turn | literature [20], patent [6] | — |
+| A: (f_m / f_ref)^p | amplitude against speed | literature p = 0 [6][9]; measured p ≈ 0.8 (VIB-A3), not settled | p = 0 (default) |
+| A: g_j | the loaded tooth flank changes with the direction of power | literature [19]; measured on two recordings (VIB-A11) | no `load_gain` |
+| A: m_j, m_n, m_b | strength changes from run to run | measured on two recordings, distribution inferred (VIB-A10) | σ_r = 0 (default) |
+| A: θ random | phase not observable in spectra | simplification (VIB-A4) | — |
+| A: min(1, f_m / f_dead) | no gear tone at rest, no jump at the stop | engineering choice | (always on; 1 above f_dead) |
+| B: s0 · x_n | arm modes at rest (servo holding) | measured at rest | — (minimal form) |
+| B: s2 (per_motion) | joints moving shake the modes at a level independent of speed | measured, start/stop and speed-up (VIB-A12); friction exciting resonances: literature [21][22] | 0 (default) |
+| B: s1 (per_activity) | modes growing with speed | first design guess; not separated from s2 on one speed | 0 |
+| B: keep < 1 | a mode that exists only while the joints stick | measured on one recording (VIB-A13) | 1 (default) |
+| B: world frame | a vibration direction fixed in the world | measured on one recording (VIB-A14) | sensor (default) |
+| C: c · activity^p_b | the floor rises 64–350 times with motion | measured at one speed; p_b inferred (VIB-A6) | no `broadband` |
 
 Term by term: each factor of the formulas above, with a small picture of what it does.
 
 ![A, gear orders: every joint, every order; load direction, run multiplier, amplitude per axis, growth with speed, fade at rest, the teeth](img/force-torque-vibration-a.svg)
+
+Inside a joint: the strain-wave gear. Most robot joints reduce the motor speed with a strain-wave (harmonic) gear,
+not two ordinary gears. An elliptical cam on the motor shaft (the wave generator) pushes a thin flexible cup with
+external teeth (the flexspline) into a rigid ring with internal teeth (the circular spline), which has two teeth more.
+The teeth mesh only in two zones, at the ends of the ellipse's long axis. Each motor turn carries both zones round
+once, so the teeth are loaded twice per turn and the vibration has two waves per motor turn: order k = 2, with its
+harmonic k = 4. The output advances by the tooth difference per motor turn, which gives the gear ratio N (for example
+202 / 2 = 101 with the circular spline as the output, or 200 / 2 = 100 with the flexspline as the output). An ordinary
+spur gear would instead give one wave per tooth, k = the number of teeth.
+
+![Strain-wave gear: the elliptical cam turns with the motor, the flexible ring meshes with the rigid ring in two zones, the outer ring turns slowly](img/strain-wave-gear.svg)
 
 ![B, arm modes: every mode, noise through a band-pass; level at rest, share kept while moving, growth with activity, joint friction while moving, run multiplier, sensor or world axes](img/force-torque-vibration-b.svg)
 
@@ -50,9 +125,10 @@ Variables:
 | φ_j | motor angle, φ_j ← φ_j + N_j · q̇_j · h | rad | — | FTV-110 |
 | f_m,j | motor rotation frequency, N_j · \|q̇_j\| / 2π | Hz | — | FTV-120 |
 | k | order: tones per motor turn (2 and 4 for a strain-wave gear) | — | `orders[].order` | FTV-130 |
-| a_{j,k,i} | amplitude of order k on axis i at the reference speed | N or N·m | `orders[].amplitude` | FTV-140 |
+| a_{j,k,i} | amplitude of order k on axis i at the reference speed: the **peak** of the sine. A spectrum gives the line's RMS; for a sine a = √2 · RMS | N or N·m | `orders[].amplitude` | FTV-140 |
+| â_{j,k,i} | amplitude of the line at this step: a times the speed factor, the fade at rest, g_j and m_j (and the resonance gain) | N or N·m | — | FTV-140 |
 | p | how the amplitude grows with motor speed (0: constant) | — | `orders[].exponent` | FTV-140 |
-| f_ref | reference motor frequency | Hz | `f_ref_hz` (default 50) | FTV-140, 240 |
+| f_ref | reference motor frequency: the motor speed at which the amplitudes are stated. At f_m,j = f_ref the speed factor (f_m,j / f_ref)^p is 1, so a_{j,k,i} is the amplitude at that speed, in N or N·m. It also sets the unit of activity: activity 1 = one joint's motor at f_ref. One value for all joints; how to choose it: [identification, section 4](force-torque-vibration-identification.md#shared) | Hz | `f_ref_hz` (default 50) | FTV-140, 240 |
 | f_dead,j | below this motor frequency the orders fade out | Hz | `deadband_hz` (default 1) | FTV-140 |
 | θ_{j,k,i} | phase, drawn once at creation | rad | — | FTV-150 |
 | g_j | load-direction gain: `positive` while the joint drives, `negative` while the load drives, with a lag | — | `load_gain` {`positive`, `negative`, `lag_s`} | FTV-170 to 185 |
@@ -60,8 +136,8 @@ Variables:
 | **B** | | | | |
 | n | arm mode, in the order of the configuration | — | `modes[]` | FTV-430 |
 | f_n, ζ_n | mode frequency and damping | Hz, — | `frequency_hz`, `damping` | FTV-210 |
-| x_n(t) | white noise through a band-pass at f_n, scaled to standard deviation 1 | — | — | FTV-210, 220 |
-| s0_{n,i} | level at rest (the servo holding) | N or N·m | `at_rest` | FTV-230 |
+| x_n(t) | the shape of mode n: white noise through a band-pass at f_n, scaled to standard deviation 1. Each axis draws its own noise (independent per axis, same f_n and ζ), so strictly it is x_{n,i}(t) | — | — | FTV-210, 220 |
+| s0_{n,i} | level at rest (the servo holding): a **standard deviation** (RMS), not a peak | N or N·m | `at_rest` | FTV-230 |
 | s1_{n,i} | growth with activity | N or N·m | `per_activity` | FTV-230 |
 | s2_{n,i} | level while moving, whatever the speed (joint friction) | N or N·m | `per_motion` | FTV-230 |
 | a_r,n | activity at which the level while moving is reached | — | `motion_ramp` (default 0.02) | FTV-235 |
@@ -144,8 +220,8 @@ f_m,j  = N_j · |q̇_j| / 2π            (motor rotation frequency, Hz)
 Each listed order k of joint j adds, on each sensor axis i,
 
 ```text
-w_i += A_{j,k,i}(f_m,j) · sin(k · φ_j + θ_{j,k,i})
-A    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k} · min(1, f_m,j / f_dead,j)   (default p = 0: constant [6][9]; taper to 0 at rest)
+w_i += â_{j,k,i}(f_m,j) · sin(k · φ_j + θ_{j,k,i})
+â    = a_{j,k,i} · (f_m,j / f_ref)^p_{j,k} · min(1, f_m,j / f_dead,j)   (default p = 0: constant [6][9]; taper to 0 at rest)
 ```
 
 Following the phase rather than the frequency keeps the tone continuous when the speed changes (order tracking).
@@ -199,7 +275,7 @@ Two recordings give a rough σ_r only; it is a first value to be replaced when m
 
 ```text
 m_c  = exp(σ_r,c · z_g(c)),   z_g ~ N(0, 1), one per group g (stream vibration_run)
-A    → m · A,   s1 → m · s1,   σ_b → m · σ_b,   s0 unchanged
+â    → m · â,   s1 → m · s1,   σ_b → m · σ_b,   s0 unchanged
 ```
 
 ### 3.5 Load direction of a joint
@@ -232,7 +308,7 @@ The model therefore multiplies the orders of a joint by a gain that follows the 
 P   = τ · q̇                     (τ: torque the joint transmits, host input)
 g  → g+ (P > 0, the joint drives: lifting)   or   g- (P < 0, the load drives: lowering)
 g  ← g + (1 − exp(−h / T)) (g_target − g)
-A  → g · m · A                  (m: run multiplier, section 3.4)
+â  → g · m · â                  (m: run multiplier, section 3.4)
 ```
 
 The lag stands for the time the flexspline needs to wind up through its soft region near zero torque (the catalogue
