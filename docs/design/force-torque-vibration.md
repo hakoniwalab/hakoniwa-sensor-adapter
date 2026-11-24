@@ -26,8 +26,16 @@ C_i = m_b · N(0, σ_b,i),       σ_b,i = √( D_i / 2h ),   D_i = c_i · activi
   FTV-210 to 255.
 - **C, broadband.** A rough floor over all frequencies that rises with motion. Section 3.3; FTV-310 and 320.
 
-The run multipliers m are drawn once per run (section 3.4); with no run variation they are 1. The level at rest s0
+The run multipliers m_j, m_n and m_b are drawn once per run (section 3.4): the same motion repeated on a real arm gives a different strength each time, and one draw per run stands for that. With no run variation they are 1. The level at rest s0
 is not scaled by them.
+
+Term by term: each factor of the formulas above, with a small picture of what it does.
+
+![A, gear orders: every joint, every order; load direction, run multiplier, amplitude per axis, growth with speed, fade at rest, the teeth](img/force-torque-vibration-a.svg)
+
+![B, arm modes: every mode, noise through a band-pass; level at rest, share kept while moving, growth with activity, joint friction while moving, run multiplier, sensor or world axes](img/force-torque-vibration-b.svg)
+
+![C, broadband: activity summed over the joints, white noise over every frequency; density per axis, growth with activity, from density to the size of one step, run multiplier](img/force-torque-vibration-c.svg)
 
 Variables:
 
@@ -65,7 +73,11 @@ Variables:
 | c_i | density at activity 1 | unit²/Hz | `broadband.density_per_activity` | FTV-310 |
 | p_b | how the density grows with activity | — | `broadband.exponent` (default 1) | FTV-310 |
 | **All** | | | | |
-| m | run multiplier exp(σ_r · z), z ~ N(0, 1), one per run | — | `run_log_sigma` (σ_r), `run_group` | FTV-350 to 380 |
+| m_j | run multiplier of joint j: scales every order amplitude of the joint (A) | — | `joints[].run_log_sigma`, `joints[].run_group` | FTV-350, 360 |
+| m_n | run multiplier of mode n: scales s1 and s2, not s0 (B) | — | `modes[].run_log_sigma`, `modes[].run_group` | FTV-350, 360 |
+| m_b | run multiplier of the broadband component: scales σ_b (C) | — | `broadband.run_log_sigma`, `broadband.run_group` | FTV-350, 360 |
+| σ_r | spread of a run multiplier: m = exp(σ_r · z); 0 (default) gives m = 1 | — | `run_log_sigma` | FTV-350 |
+| z | standard normal number N(0, 1), drawn once per run; components with the same `run_group` share one z | — | `run_group` | FTV-370, 380 |
 
 The figure uses illustrative values (one order, one mode, joint at 45 °/s), not a fitted configuration.
 
