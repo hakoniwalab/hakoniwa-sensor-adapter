@@ -59,12 +59,12 @@ checked), **default** (not identifiable from the data; the default of the specif
 |---|---|---|---|
 | order k | `orders[].order` | R2: a line whose frequency moves with motor speed; k = line frequency / f_m | lines are taken as modes (B) |
 | gear ratio N_j | `gear_ratio` | data sheet; or R2: the slope of line frequency against joint speed = k · N_j / 2π, needs k assumed | k and N cannot be told apart: only k · N_j is known |
-| amplitude a_{j,k,i} | `orders[].amplitude` | R2: band power of the line per axis, at the reference speed | — (required) |
+| amplitude a_{j,k,i} | `orders[].amplitude` | R2: band power of the line per axis, at the reference speed. The band power gives the RMS; a is the peak of the sine: a = √2 · RMS | — (required) |
 | speed exponent p | `orders[].exponent` | R2: the line amplitude at two or more speeds (or along a speed-up) | default 0 (constant), literature |
 | dead band f_dead | `deadband_hz` | R3: the speed below which the line disappears | default 1 Hz |
 | phase θ | — | not observable | random |
 | resonance gain | `orders[].resonance` | R2: the line grows where k · f_m crosses a mode | off |
-| load gain g+, g−, lag T | `load_gain` | R4: line amplitude while lifting vs lowering; the lag from the transition | 1 (no load effect) |
+| load gain g+, g−, lag T | `load_gain` | R4: line amplitude while lifting vs lowering; the lag from the transition. Only the ratio g− / g+ is identified: a · g is what the data shows, so a and g trade against each other. Convention: `positive` = 1 and a is the amplitude while lifting | 1 (no load effect) |
 | run variation σ_r | `joints[].run_log_sigma` | R5: spread of ln(amplitude) over the repeats | 0 |
 
 ### B, arm modes
@@ -72,7 +72,7 @@ checked), **default** (not identifiable from the data; the default of the specif
 | Parameter | Key | Identified from | Without it |
 |---|---|---|---|
 | frequency f_n, damping ζ | `frequency_hz`, `damping` | R1: a peak in the spectrum at rest (half-power width); R2: a peak that does not move with speed | — (required for each mode) |
-| level at rest s0 | `at_rest` | R1: band level around f_n per axis | — (required) |
+| level at rest s0 | `at_rest` | R1: band level around f_n per axis, as a standard deviation (RMS; no √2, unlike a) | — (required) |
 | level while moving s2 | `per_motion` | R2 at two speeds: the part of the band level that is the same at both; R3: the jump at a start | cannot be told from s1 (one speed: s1 · activity and s2 are the same number) |
 | growth with activity s1 | `per_activity` | R2 at two speeds: the part that grows with speed | as above |
 | motion ramp a_r | `motion_ramp` | R3: the activity at which the level reaches s2 after a start | default 0.02 |
@@ -92,8 +92,20 @@ checked), **default** (not identifiable from the data; the default of the specif
 
 | Parameter | Key | Identified from | Without it |
 |---|---|---|---|
-| reference frequency f_ref | `f_ref_hz` | chosen: the motor frequency at the main speed of R2, so that amplitudes are stated where the arm works | default 50 Hz |
+| reference frequency f_ref | `f_ref_hz` | chosen, not identified (below) | default 50 Hz |
 | run groups | `run_group` | R5: components whose multipliers move together | none |
+
+How to choose f_ref. It is a unit, not a property of the arm: any value gives the same vibration once the other
+parameters are rescaled with it. Changing f_ref to f_ref' changes
+
+- the amplitudes: a' = a · (f_ref' / f_ref)^p (no change when p = 0);
+- the activity: activity' = activity · f_ref / f_ref', so s1, a_r and c change with it
+  (s1' = s1 · f_ref' / f_ref, a_r' = a_r · f_ref / f_ref', c' = c · (f_ref' / f_ref)^p_b).
+
+Choose it so that the numbers are read where they were measured: the motor frequency of the main joint at the main
+cruise speed of R2 (for example N = 160 at 45 °/s gives 20 Hz). The amplitudes a are then the line amplitudes measured
+at that speed, and activity 1 means that joint at that speed. With several joints, use the joint and speed that the
+application moves most. Fix f_ref before fitting the other parameters and keep it with them.
 
 ## 5. What the public recording identifies (Zenodo 11096791)
 

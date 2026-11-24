@@ -10,7 +10,8 @@ adapter (`ForceTorqueTruth`). The interface below is public; implementations (fo
 name.
 
 Notation: axes i = Fx, Fy, Fz, Tx, Ty, Tz in sensor axes (FLU), joints j in the order of the configuration, h the
-physics step [s], N(0, σ) the normal distribution.
+physics step [s], N(0, σ) the normal distribution. â_{j,k,i} is the amplitude of one order line at this step (the design writes the whole order
+component as A_i, so â avoids the clash).
 
 ## 1. Interface
 
@@ -33,10 +34,10 @@ physics step [s], N(0, σ) the normal distribution.
 |---|---|
 | FTV-110 | Motor phase per joint: φ_j ← φ_j + N_j · q̇_j · h every step, from φ_j = 0 at creation and reset. N_j is the joint's gear ratio |
 | FTV-120 | Motor frequency: f_m,j = N_j · \|q̇_j\| / 2π [Hz] |
-| FTV-130 | Each configured order k of joint j adds on each axis i: A_{j,k,i} · sin(k · φ_j + θ_{j,k,i}). k is a positive number (usually an integer) |
-| FTV-140 | Amplitude: A = a_{j,k,i} · (f_m,j / f_ref)^p · min(1, f_m,j / f_dead,j). p defaults to 0 (amplitude constant with speed, design references [6][9]); f_dead,j defaults to 1 Hz. The factor makes the component vanish smoothly as the joint stops |
+| FTV-130 | Each configured order k of joint j adds on each axis i: â_{j,k,i} · sin(k · φ_j + θ_{j,k,i}). k is a positive number (usually an integer) |
+| FTV-140 | Amplitude: â = a_{j,k,i} · (f_m,j / f_ref)^p · min(1, f_m,j / f_dead,j). p defaults to 0 (amplitude constant with speed, design references [6][9]); f_dead,j defaults to 1 Hz. The factor makes the component vanish smoothly as the joint stops |
 | FTV-150 | θ_{j,k,i} is drawn once at creation from U(−π, π) in the stream `vibration_phase`, in the order of joints, then orders, then axes |
-| FTV-160 | Optional resonance gain per order (`"resonance": true`): A is multiplied by max over the configured modes of 1 / √((1 − r²)² + (2ζ_n r)²), r = k·f_m,j / f_n. Without modes the gain is 1 |
+| FTV-160 | Optional resonance gain per order (`"resonance": true`): â is multiplied by max over the configured modes of 1 / √((1 − r²)² + (2ζ_n r)²), r = k·f_m,j / f_n. Without modes the gain is 1 |
 
 ### 2.1 Load direction of a joint (gear flank)
 
@@ -86,7 +87,7 @@ The same motion repeated on a real arm gives components whose strength changes f
 | ID | Requirement |
 |---|---|
 | FTV-350 | Each joint, each mode and the broadband component may have a run variation σ_r ≥ 0 (`run_log_sigma`, default 0). At creation the model draws one multiplier m = exp(σ_r · z), z from N(0, 1) in the stream `vibration_run`. σ_r = 0 gives m = 1 |
-| FTV-360 | m scales the parts driven by motion: every order amplitude A of the joint (FTV-140), the growth s1 and the level while moving s2 of the mode (FTV-230, not the level at rest s0), and σ_b of the broadband component (FTV-310). The configured values are therefore the median over runs |
+| FTV-360 | m scales the parts driven by motion: every order amplitude â of the joint (FTV-140), the growth s1 and the level while moving s2 of the mode (FTV-230, not the level at rest s0), and σ_b of the broadband component (FTV-310). The configured values are therefore the median over runs |
 | FTV-370 | Components with the same `run_group` (a non-empty string) share one z; each uses its own σ_r. A component without a group has a z of its own |
 | FTV-380 | One z is drawn for each group and each ungrouped component, whether or not its σ_r is 0, in the order: joints, modes, broadband; a group is drawn at its first member in that order. Changing one σ_r therefore does not change another component's multiplier. `reset` draws the same values again (FTV-040) |
 

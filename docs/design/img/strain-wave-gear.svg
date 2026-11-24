@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="330" viewBox="0 0 680 330" font-family="Helvetica, Arial, sans-serif">
+<title>Strain-wave gear: two mesh zones per motor turn</title>
+<rect width="680" height="330" fill="#FFFFFF"/>
+<g>
+<circle cx="200" cy="160" r="120" fill="none" stroke="#5F5E5A" stroke-width="10" stroke-dasharray="4 3"/>
+<line x1="200" y1="34" x2="200" y2="48" stroke="#5F5E5A" stroke-width="3"/>
+<animateTransform attributeName="transform" type="rotate" from="0 200 160" to="360 200 160" dur="40s" repeatCount="indefinite"/>
+</g>
+<g>
+<ellipse cx="200" cy="160" rx="112" ry="96" fill="none" stroke="#1D9E75" stroke-width="7" stroke-dasharray="4 3"/>
+<ellipse cx="200" cy="160" rx="100" ry="82" fill="none" stroke="#D85A30" stroke-width="2"/>
+<circle cx="312" cy="160" r="9" fill="none" stroke="#D85A30" stroke-width="2.5"/>
+<circle cx="88" cy="160" r="9" fill="none" stroke="#D85A30" stroke-width="2.5"/>
+<line x1="200" y1="160" x2="300" y2="160" stroke="#D85A30" stroke-width="1.5"/>
+<line x1="200" y1="160" x2="100" y2="160" stroke="#D85A30" stroke-width="1.5"/>
+<animateTransform attributeName="transform" type="rotate" from="0 200 160" to="360 200 160" dur="4s" repeatCount="indefinite"/>
+</g>
+<circle cx="200" cy="160" r="6" fill="#D85A30"/>
+<text x="370" y="64" font-size="14" font-weight="500" fill="#2C2C2A">Circular spline (outer, rigid)</text>
+<text x="370" y="82" font-size="12" fill="#5F5E5A">internal teeth, e.g. 202; the output: turns slowly</text>
+<text x="370" y="120" font-size="14" font-weight="500" fill="#1D9E75">Flexspline (thin, flexible)</text>
+<text x="370" y="138" font-size="12" fill="#5F5E5A">external teeth, 2 fewer (200); held still here</text>
+<text x="370" y="176" font-size="14" font-weight="500" fill="#D85A30">Wave generator (elliptical cam)</text>
+<text x="370" y="194" font-size="12" fill="#5F5E5A">on the motor shaft: turns fast</text>
+<text x="370" y="232" font-size="14" font-weight="500" fill="#2C2C2A">Teeth mesh in two zones only (○)</text>
+<text x="370" y="250" font-size="12" fill="#5F5E5A">at the ends of the ellipse's long axis</text>
+<text x="40" y="300" font-size="12" fill="#2C2C2A">One motor turn: the two mesh zones go round once, the teeth are loaded twice → two waves (order k = 2).</text>
+<text x="40" y="318" font-size="12" fill="#5F5E5A">The outer ring advances by the tooth difference: N = 202 / 2 = 101. Speeds not to scale.</text>
+</svg>
