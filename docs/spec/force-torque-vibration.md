@@ -13,6 +13,30 @@ Notation: axes i = Fx, Fy, Fz, Tx, Ty, Tz in sensor axes (FLU), joints j in the 
 physics step [s], N(0, σ) the normal distribution. â_{j,k,i} is the amplitude of one order line at this step (the design writes the whole order
 component as A_i, so â avoids the clash).
 
+## 0. Intended use (not a requirement)
+
+![Use case 1: force control with a slow or nearly still arm](../design/img/force-torque-use-case-force-control.svg)
+
+**Use case 1, the one the model is validated for: force control with the arm nearly still or moving slowly.**
+Pressing, insertion, polishing and surface following, where a controller acts on the wrist force-torque. The model
+gives that controller, its filters and its thresholds a realistic signal in simulation before the real arm is used.
+
+What must be right for it, in the controller's view (the measured wrench through a low-pass of about 20 Hz):
+
+| State | What dominates | Model parts |
+|---|---|---|
+| At rest | the servos holding the pose, the sensor's own noise | B: s0 (section 3); the adapter's noise |
+| Moving slowly | joint friction shaking the arm's modes, about the same at any slow speed | B: s2 (FTV-230, 235) |
+| Starting and stopping | the jump between the two levels | B: a_r, `at_rest_while_moving` (FTV-232, 235) |
+| Slowing down | gear order lines that move below 20 Hz | A: k, a, p, f_dead (section 2) |
+
+Acceptance for this use case is judged on these states, with the fitting data and the validation data kept apart
+(design: [force-torque-vibration-identification.md](../design/force-torque-vibration-identification.md)).
+
+Other uses the model supports but is not validated for yet: contact and collision thresholds during fast motion
+(the peaks of A, B and C over the full sensor band), and training data for learned policies (the full spectrum and the
+run-to-run variation). Out of scope: vibration caused by contact or impacts, wear and temperature (design section 8).
+
 ## 1. Interface
 
 | ID | Requirement |

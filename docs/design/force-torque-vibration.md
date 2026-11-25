@@ -2,6 +2,8 @@
 
 Status: the requirements are in [spec/force-torque-vibration.md](../spec/force-torque-vibration.md) (`FTV-*`). Open questions 2 and 3 of section 9 stay open; the first version uses per-axis amplitudes and leaves the arm IMU out.
 
+Intended use: force control with the arm nearly still or moving slowly ([spec, section 0](../spec/force-torque-vibration.md#0-intended-use-not-a-requirement)).
+
 ## In one picture: vibration = A + B + C
 
 ![vibration = A + B + C: gear orders, arm modes, broadband](img/force-torque-vibration-abc.svg)
