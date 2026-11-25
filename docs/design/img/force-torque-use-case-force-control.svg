@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="416" viewBox="0 0 680 416" font-family="Helvetica, Arial, sans-serif">
+<title>Use case: force control with a slow or nearly still arm</title>
+<rect width="680" height="416" fill="#FFFFFF"/>
+<text x="340" y="28" font-size="16" font-weight="500" fill="#2C2C2A" text-anchor="middle">Use case 1: force control, arm nearly still or slow</text>
+<rect x="40" y="250" width="70" height="16" rx="3" fill="none" stroke="#888780"/>
+<path d="M75 250 L110 160 L200 130 L250 170" fill="none" stroke="#5F5E5A" stroke-width="7" stroke-linecap="round"/>
+<circle cx="75" cy="246" r="9" fill="none" stroke="#D85A30" stroke-width="3" stroke-dasharray="3 2"/>
+<circle cx="110" cy="160" r="9" fill="none" stroke="#D85A30" stroke-width="3" stroke-dasharray="3 2"/>
+<circle cx="200" cy="130" r="9" fill="none" stroke="#D85A30" stroke-width="3" stroke-dasharray="3 2"/>
+<rect x="242" y="168" width="18" height="16" rx="2" fill="#1D9E75"/>
+<line x1="251" y1="184" x2="251" y2="232" stroke="#5F5E5A" stroke-width="5"/>
+<rect x="190" y="236" width="140" height="10" fill="#D3D1C7"/>
+<path d="M190 246 L330 246" stroke="#888780"/>
+<text x="268" y="204" font-size="12" fill="#1D9E75">wrist F/T sensor</text>
+<text x="196" y="262" font-size="12" fill="#5F5E5A">press, insert, polish, follow</text>
+<path d="M120 112 q8 -10 16 0 q8 10 16 0" fill="none" stroke="#1D9E75" stroke-width="1.5"/>
+<text x="40" y="100" font-size="12" fill="#1D9E75">arm sways (B)</text>
+<text x="40" y="296" font-size="12" fill="#D85A30">gears turn slowly (A, low lines)</text>
+<rect x="400" y="60" width="240" height="56" rx="8" fill="none" stroke="#5F5E5A"/>
+<text x="520" y="84" font-size="14" font-weight="500" fill="#2C2C2A" text-anchor="middle">Force controller</text>
+<text x="520" y="102" font-size="12" fill="#5F5E5A" text-anchor="middle">sees up to ≈ 20 Hz</text>
+<path d="M260 176 L380 176 L380 88 L398 88" fill="none" stroke="#2C2C2A" stroke-width="1.2"/>
+<path d="M392 84 L398 88 L392 92" fill="none" stroke="#2C2C2A" stroke-width="1.2"/>
+<text x="290" y="168" font-size="12" fill="#2C2C2A">measured force</text>
+<path d="M640 88 L660 88 L660 318 L22 318 L22 258 L38 258" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 3"/>
+<text x="470" y="334" font-size="12" fill="#888780">commands back to the arm</text>
+<rect x="400" y="140" width="240" height="140" rx="8" fill="none" stroke="#D3D1C7"/>
+<text x="412" y="160" font-size="12" font-weight="500" fill="#2C2C2A">What must be right</text>
+<text x="412" y="182" font-size="12" fill="#2C2C2A">• level at rest (s0, sensor noise)</text>
+<text x="412" y="202" font-size="12" fill="#2C2C2A">• level while moving slowly (s2)</text>
+<text x="412" y="222" font-size="12" fill="#2C2C2A">• the jump at start and stop</text>
+<text x="412" y="242" font-size="12" fill="#2C2C2A">• order lines that fall below 20 Hz</text>
+<text x="412" y="262" font-size="12" fill="#2C2C2A">  when the arm slows (A)</text>
+<text x="40" y="362" font-size="12" fill="#2C2C2A">measured force = contact force + vibration (A + B + C) + the sensor's own noise</text>
+<text x="40" y="382" font-size="12" fill="#5F5E5A">Tune the controller, its filters and thresholds in simulation on a realistic signal before the real arm.</text>
+<text x="40" y="400" font-size="12" fill="#5F5E5A">Acceptance is judged in the controller's view (low-pass 20 Hz): at rest, while moving slowly, at start and stop.</text>
+</svg>
