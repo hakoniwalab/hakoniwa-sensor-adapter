@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="680" height="416" viewBox="0 0 680 416" font-family="Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="640" viewBox="0 0 680 640" font-family="Helvetica, Arial, sans-serif">
 <title>Use case: force control with a slow or nearly still arm</title>
-<rect width="680" height="416" fill="#FFFFFF"/>
+<rect width="680" height="640" fill="#FFFFFF"/>
 <text x="340" y="28" font-size="16" font-weight="500" fill="#2C2C2A" text-anchor="middle">Use case 1: force control, arm nearly still or slow</text>
 <rect x="40" y="250" width="70" height="16" rx="3" fill="none" stroke="#888780"/>
 <path d="M75 250 L110 160 L200 130 L250 170" fill="none" stroke="#5F5E5A" stroke-width="7" stroke-linecap="round"/>
@@ -34,4 +34,45 @@
 <text x="40" y="362" font-size="12" fill="#2C2C2A">measured force = contact force + vibration (A + B + C) + the sensor's own noise</text>
 <text x="40" y="382" font-size="12" fill="#5F5E5A">Tune the controller, its filters and thresholds in simulation on a realistic signal before the real arm.</text>
 <text x="40" y="400" font-size="12" fill="#5F5E5A">Acceptance is judged in the controller's view (low-pass 20 Hz): at rest, while moving slowly, at start and stop.</text>
+<text x="40" y="430" font-size="13" font-weight="500" fill="#2C2C2A">Examples</text>
+<rect x="40" y="440" width="144" height="186" rx="8" fill="none" stroke="#D3D1C7"/>
+<text x="50" y="460" font-size="13" font-weight="500" fill="#2C2C2A">press</text>
+<text x="50" y="480" font-size="11" fill="#2C2C2A">Press-fit a part;</text>
+<text x="50" y="496" font-size="11" fill="#2C2C2A">hold an ultrasound</text>
+<text x="50" y="512" font-size="11" fill="#2C2C2A">probe on the body</text>
+<text x="50" y="536" font-size="11" fill="#1D9E75">goal: keep 5–20 N</text>
+<text x="50" y="560" font-size="11" font-weight="500" fill="#D85A30">vibration causes</text>
+<text x="50" y="576" font-size="11" fill="#5F5E5A">false alarms of the</text>
+<text x="50" y="591" font-size="11" fill="#5F5E5A">force limit; the force</text>
+<text x="50" y="606" font-size="11" fill="#5F5E5A">loop wobbles</text>
+<rect x="192" y="440" width="144" height="186" rx="8" fill="none" stroke="#D3D1C7"/>
+<text x="202" y="460" font-size="13" font-weight="500" fill="#2C2C2A">insert</text>
+<text x="202" y="480" font-size="11" fill="#2C2C2A">Plug a connector;</text>
+<text x="202" y="496" font-size="11" fill="#2C2C2A">peg in a hole;</text>
+<text x="202" y="512" font-size="11" fill="#2C2C2A">snap-fit, screw</text>
+<text x="202" y="536" font-size="11" fill="#1D9E75">goal: detect the touch</text>
+<text x="202" y="560" font-size="11" font-weight="500" fill="#D85A30">vibration causes</text>
+<text x="202" y="576" font-size="11" fill="#5F5E5A">a stop or start jump</text>
+<text x="202" y="591" font-size="11" fill="#5F5E5A">reads as &quot;touched&quot;</text>
+<text x="202" y="606" font-size="11" fill="#5F5E5A">before contact</text>
+<rect x="344" y="440" width="144" height="186" rx="8" fill="none" stroke="#D3D1C7"/>
+<text x="354" y="460" font-size="13" font-weight="500" fill="#2C2C2A">polish</text>
+<text x="354" y="480" font-size="11" fill="#2C2C2A">Polish a car body</text>
+<text x="354" y="496" font-size="11" fill="#2C2C2A">or a mould;</text>
+<text x="354" y="512" font-size="11" fill="#2C2C2A">deburr a casting</text>
+<text x="354" y="536" font-size="11" fill="#1D9E75">goal: constant force</text>
+<text x="354" y="560" font-size="11" font-weight="500" fill="#D85A30">vibration causes</text>
+<text x="354" y="576" font-size="11" fill="#5F5E5A">order lines below</text>
+<text x="354" y="591" font-size="11" fill="#5F5E5A">20 Hz shake the force</text>
+<text x="354" y="606" font-size="11" fill="#5F5E5A">loop: uneven finish</text>
+<rect x="496" y="440" width="144" height="186" rx="8" fill="none" stroke="#D3D1C7"/>
+<text x="506" y="460" font-size="13" font-weight="500" fill="#2C2C2A">follow</text>
+<text x="506" y="480" font-size="11" fill="#2C2C2A">Hand-guide the arm</text>
+<text x="506" y="496" font-size="11" fill="#2C2C2A">to teach it;</text>
+<text x="506" y="512" font-size="11" fill="#2C2C2A">trace a surface</text>
+<text x="506" y="536" font-size="11" fill="#1D9E75">goal: yield to the force</text>
+<text x="506" y="560" font-size="11" font-weight="500" fill="#D85A30">vibration causes</text>
+<text x="506" y="576" font-size="11" fill="#5F5E5A">the arm drifts or</text>
+<text x="506" y="591" font-size="11" fill="#5F5E5A">jitters with no hand</text>
+<text x="506" y="606" font-size="11" fill="#5F5E5A">on it</text>
 </svg>

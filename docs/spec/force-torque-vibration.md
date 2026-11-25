@@ -21,6 +21,55 @@ component as A_i, so â avoids the clash).
 Pressing, insertion, polishing and surface following, where a controller acts on the wrist force-torque. The model
 gives that controller, its filters and its thresholds a realistic signal in simulation before the real arm is used.
 
+### 0.1 Examples
+
+| Task | Examples | What the controller does | What the vibration does to it |
+|---|---|---|---|
+| Press | press-fit a part; check a button; hold an ultrasound probe on a patient | holds a set force, a few N to tens of N | the force limit trips with nothing wrong; the force loop wobbles |
+| Insert | plug a connector; peg in a hole; snap-fit; drive a screw | detects the first touch by a force threshold, then searches sideways by force | the jump at a stop or start, or the rest noise, reads as "touched" before contact |
+| Polish | polish a car body or a mould; deburr a casting; sand a painted surface | keeps a constant force while moving slowly along the surface | gear lines that fall below 20 Hz shake the force loop: uneven finish |
+| Follow | hand-guide the arm to teach it (direct teaching); trace a surface for inspection | moves the arm in the direction of the force it feels | the arm drifts or jitters with no hand on it; a dead band hides a light touch |
+
+In all four the arm is still or slow and the controller acts on the wrist force-torque. A threshold, a filter band
+and a gain are chosen for each task, and each depends on how much the signal shakes when nothing touches the tool.
+
+### 0.2 Without this model: what goes wrong in simulation (expected)
+
+The simulated sensor then gives the contact force plus, at most, white noise of the data sheet. Expected, not
+measured:
+
+- **Thresholds come out too tight.** A touch threshold tuned on a clean signal sits just above the sensor noise. On the
+  real arm the servos, the gears and the arm modes add their vibration, and the threshold trips without contact.
+- **The stop and start jump is missing.** A clean simulation is quiet the moment the arm stops. The real arm rings for a
+  short time; an insertion that waits for "quiet" or detects contact right after a stop fails there.
+- **Low gear lines are missing.** When the arm slows, gear lines fall into the band the controller sees. A force gain
+  tuned on a clean signal may then wobble at that frequency on the real arm.
+- **Filters look free.** On a clean signal a narrow filter seems unnecessary, or a wide one costs nothing. The trade-off
+  between delay and noise only appears on the real arm.
+
+So every threshold, filter and gain is found again on the real arm, by trial: run the task, see a false stop or a
+wobble, change a value, run again.
+
+### 0.3 With this model: what simulation shows, and what is left for the real arm
+
+The simulated sensor gives the contact force plus the vibration of that arm, at rest, while moving slowly and at start
+and stop, with its run-to-run spread.
+
+- **Thresholds from a false-alarm rate.** Run the approach or the hold hundreds of times in simulation with different
+  seeds and count the false touches; pick the lowest threshold with an acceptable rate.
+- **Filter band from the delay and noise trade-off.** Compare filters on the same simulated runs: delay of the touch
+  detection against the noise left.
+- **Force gains checked against the low gear lines.** Sweep the speed in simulation and see whether the loop wobbles
+  when the lines enter the controller band.
+- **The stop and start behaviour.** How long to wait after a stop, or how to blank the detection, is set in simulation.
+
+What is left for the real arm: confirmation runs with the values found in simulation, instead of the trial loop above.
+The cost to get there is one recording session on the customer's arm and tool (section 3 of the identification
+design: rest, two or more speeds, start and stop; minutes of recording) and the identification tool. The model is
+validated for the states of this section; how many real-arm runs it saves has not been measured yet.
+
+### 0.4 What must be right
+
 What must be right for it, in the controller's view (the measured wrench through a low-pass of about 20 Hz):
 
 | State | What dominates | Model parts |
